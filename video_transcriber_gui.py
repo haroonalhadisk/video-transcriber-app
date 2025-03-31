@@ -46,6 +46,10 @@ class VideoTranscriberGUI:
         
         # Load saved Notion settings if available
         self.load_notion_settings()
+        
+        # Initialize batch processing
+        if hasattr(self, 'integrate_batch_processing'):
+            self.integrate_batch_processing()
     
     def create_ui(self):
         # Main frame with notebook for tabs
@@ -53,16 +57,16 @@ class VideoTranscriberGUI:
         main_frame.pack(fill=tk.BOTH, expand=True)
         
         # Create notebook with tabs
-        notebook = ttk.Notebook(main_frame)
-        notebook.pack(fill=tk.BOTH, expand=True)
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
         
         # Main tab
-        main_tab = ttk.Frame(notebook)
-        notebook.add(main_tab, text="Transcription")
+        main_tab = ttk.Frame(self.notebook)
+        self.notebook.add(main_tab, text="Transcription")
         
         # Notion settings tab
-        notion_tab = ttk.Frame(notebook)
-        notebook.add(notion_tab, text="Notion Integration")
+        notion_tab = ttk.Frame(self.notebook)
+        self.notebook.add(notion_tab, text="Notion Integration")
         
         # ===== MAIN TAB =====
         # File selection frame

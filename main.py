@@ -2,7 +2,6 @@ import os
 import sys
 import subprocess
 import tkinter as tk
-from video_transcriber_gui import VideoTranscriberGUI
 
 def main():
     # Check for required packages
@@ -18,6 +17,12 @@ def main():
         print("Installation complete. Please restart the application.")
         input("Press Enter to exit...")
         sys.exit(1)
+    
+    # Import local modules after package check
+    from video_transcriber_gui import VideoTranscriberGUI
+    # Import the batch processing functionality and attach it to the GUI class
+    import batch_processing
+    VideoTranscriberGUI.integrate_batch_processing = batch_processing.integrate_batch_processing
         
     root = tk.Tk()
     app = VideoTranscriberGUI(root)

@@ -14,6 +14,8 @@ A GUI application that accurately transcribes speech from video files using Open
 - **Progress Tracking**: Real-time progress updates during transcription
 - **Transcription Preview**: See a preview of the transcription in the application
 - **Local Processing**: All transcription happens locally on your machine with no data sent to external servers
+- **Batch Processing**: Process multiple video files in a directory with a single click
+- **Notion Integration**: Automatically send transcriptions to your Notion database
 
 ## Installation
 
@@ -40,14 +42,14 @@ A GUI application that accurately transcribes speech from video files using Open
 Install all required packages using pip:
 
 ```bash
-pip install torch openai-whisper tkinter
+pip install torch openai-whisper tkinter requests
 ```
 
 For NVIDIA GPU support (recommended for faster processing):
 
 ```bash
 pip install torch==2.0.0+cu118 -f https://download.pytorch.org/whl/torch_stable.html
-pip install openai-whisper
+pip install openai-whisper requests
 ```
 
 ## Usage
@@ -55,24 +57,45 @@ pip install openai-whisper
 1. Clone or download this repository
 2. Run the application:
    ```bash
-   python whisper_video_transcriber.py
+   python main.py
    ```
 
 ### Using the Application
 
-1. **Select Video File**: Click "Browse" to select the video file you want to transcribe
-2. **Choose Output Location**: Specify where to save the transcription text file
-3. **Select Whisper Model**:
+#### Single File Transcription
+1. Click on the "Transcription" tab
+2. **Select Video File**: Click "Browse" to select the video file you want to transcribe
+3. **Choose Output Location**: Specify where to save the transcription text file
+4. **Select Whisper Model**:
    - **Tiny**: Fastest but least accurate (~1GB RAM)
    - **Base**: Good balance of speed and accuracy (~1GB RAM)
    - **Small**: Better accuracy, moderate speed (~2GB RAM)
    - **Medium**: High accuracy, slower processing (~5GB RAM)
    - **Large**: Best quality, but slowest processing (~10GB RAM)
-4. **Select Language**: Choose the language of the video or use auto-detection
-5. **Timestamp Options**: Enable/disable word-level timestamps
-6. **Start Transcription**: Click the "Start Transcription" button
-7. **Monitor Progress**: Watch the progress bar and status updates
-8. **View Results**: See a preview of the transcription and find the complete text in the saved file
+5. **Select Language**: Choose the language of the video or use auto-detection
+6. **Timestamp Options**: Enable/disable word-level timestamps
+7. **Start Transcription**: Click the "Start Transcription" button
+8. **Monitor Progress**: Watch the progress bar and status updates
+9. **View Results**: See a preview of the transcription and find the complete text in the saved file
+
+#### Batch Processing
+1. Click on the "Batch Processing" tab
+2. **Select Video Directory**: Click "Browse" to select a folder containing multiple video files
+3. **Choose Output Directory**: Specify where to save all the transcription text files
+4. **Configure Options**: Select the same model, language, and timestamp options as in single file mode
+5. **Start Batch Processing**: Click the "Start Batch Transcription" button
+6. **Monitor Progress**: Track the overall progress bar and view the processing log
+7. **Batch Results**: Each video will be transcribed and saved as a separate text file in the output directory
+
+#### Notion Integration
+1. Click on the "Notion Integration" tab
+2. **Set Up Notion**: Follow the instructions to create a Notion integration and get your API token
+3. **Configure Integration**:
+   - Enter your Notion API Token
+   - Enter your Notion Database ID
+   - Click "Test Connection" to verify your settings
+4. **Enable Integration**: Check "Send to Notion after transcription" in either single file or batch mode
+5. **View in Notion**: Transcriptions will be added as new pages in your Notion database
 
 ## Technical Details
 
@@ -82,6 +105,8 @@ pip install openai-whisper
 2. **Speech Recognition**: Processes the audio with OpenAI's Whisper model
 3. **Threading**: Runs transcription in a background thread to keep the UI responsive
 4. **Progress Updates**: Regularly updates the UI with the current status
+5. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
+6. **Notion API**: Connects to Notion's API to add transcriptions as database entries
 
 ### Components
 
@@ -89,21 +114,7 @@ pip install openai-whisper
 - **Audio Processing**: Uses FFmpeg for reliable audio extraction
 - **Speech Recognition**: Leverages OpenAI's Whisper model via the `openai-whisper` Python package
 - **GPU Acceleration**: Automatically uses CUDA if available for faster processing
-
-## Development History
-
-### Version 1.0
-- Initial version using Google Speech Recognition API
-- Basic transcription capabilities
-- Limited accuracy and language support
-
-### Version 2.0 (Current)
-- Switched to OpenAI's Whisper model for significantly improved accuracy
-- Added multiple model size options
-- Implemented language selection and auto-detection
-- Added timestamp generation
-- Enhanced the user interface
-- Improved progress reporting
+- **Notion Integration**: Uses Notion's official API to create new pages in your database
 
 ## Troubleshooting
 
@@ -114,7 +125,7 @@ pip install openai-whisper
 - Restart the application after installing FFmpeg
 
 **Error: Missing required packages**
-- Run `pip install torch openai-whisper` to install the required packages
+- Run `pip install torch openai-whisper requests` to install the required packages
 - Make sure you have a compatible Python version (3.7+)
 
 **Slow Transcription**
@@ -127,6 +138,11 @@ pip install openai-whisper
 - Close other memory-intensive applications
 - Increase your system's swap space/virtual memory
 
+**Batch Processing Errors**
+- Make sure all videos in the directory are valid and not corrupted
+- Ensure sufficient disk space for audio extraction and transcription files
+- Check that your Notion API token and database ID are correct if using integration
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -135,13 +151,15 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [OpenAI Whisper](https://github.com/openai/whisper) for the speech recognition model
 - [FFmpeg](https://ffmpeg.org/) for audio processing
+- [Notion API](https://developers.notion.com/) for database integration
 - Python Tkinter for the GUI framework
 
 ## Future Improvements
 
-- Support for batch processing multiple files
+- Support for batch processing multiple files ✓ (Implemented!)
 - Export options (SRT, VTT, JSON)
 - Audio/video playback integration
 - Speaker diarization (identifying different speakers)
 - Transcript editing capabilities
 - Support for fine-tuned custom models
+- Additional third-party integrations (Google Docs, Microsoft Word, etc.)
