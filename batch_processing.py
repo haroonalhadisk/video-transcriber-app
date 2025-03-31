@@ -51,6 +51,13 @@ def start_batch_transcription(self):
                                "Please configure it in the Notion Integration tab or disable it.")
             return
     
+    # Check if Groq is enabled but not configured
+    if self.groq_enabled.get():
+        if not self.groq_api_key.get():
+            messagebox.showerror("Error", "Groq AI processing is enabled but not configured. "
+                              "Please configure it in the AI Processing tab or disable it.")
+            return
+    
     # Find video files in the directory
     video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv', '.webm']
     video_files = []
@@ -98,6 +105,11 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
     language = self.language_var.get() if self.language_var.get() != "None" else None
     keep_audio = self.keep_audio_var.get()
     word_timestamps = self.word_timestamps_var.get()
+    
+    # Get system prompt for Groq processing if enabled
+    system_prompt = None
+    if self.groq_enabled.get() and hasattr(self, "system_prompt_text"):
+        system_prompt = self.system_prompt_text.get(1.0, tk.END).strip()
     
     # Load the Whisper model at the beginning of batch processing
     try:
@@ -181,27 +193,69 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
                         'duration': result.get('duration', None)
                     }
                 
-                # Write transcription to file
-                try:
-                    with open(output_file, "w", encoding="utf-8") as file:
-                        file.write(transcription['detailed'])
+                # Process with Groq if enabled
+                groq_result = None
+                if self.groq_enabled.get():
+                    self.update_batch_log(f"Processing with Groq AI: {video_basename}")
                     
-                    self.update_batch_log(f"✓ Saved: {output_basename}")
+                    # Process with Groq
+                    success, result = self.groq_api.summarize_transcript(transcription['text'], system_prompt)
                     
-                    # Add to Notion if enabled
-                    if self.notion_enabled.get():
+                    if success:
+                        groq_result = result
+                        self.update_batch_log(f"✓ Groq processing successful: {video_basename}")
+                        
+                        # Write enhanced transcription to file
+                        try:
+                            with open(output_file, "w", encoding="utf-8") as file:
+                                file.write(f"Title: {groq_result['title']}\n\n")
+                                file.write(f"Summary: {groq_result['summary']}\n\n")
+                                file.write("--- Original Transcript ---\n\n")
+                                file.write(transcription['detailed'])
+                            
+                            self.update_batch_log(f"✓ Saved enhanced transcription: {output_basename}")
+                        except Exception as e:
+                            self.update_batch_log(f"✗ Error saving enhanced transcription: {str(e)}")
+                            continue
+                    else:
+                        self.update_batch_log(f"✗ Groq processing failed: {result}")
+                        
+                        # Write original transcription instead
+                        try:
+                            with open(output_file, "w", encoding="utf-8") as file:
+                                file.write(transcription['detailed'])
+                            
+                            self.update_batch_log(f"✓ Saved original transcription: {output_basename}")
+                        except Exception as e:
+                            self.update_batch_log(f"✗ Error saving transcription: {str(e)}")
+                            continue
+                else:
+                    # Write transcription to file without Groq processing
+                    try:
+                        with open(output_file, "w", encoding="utf-8") as file:
+                            file.write(transcription['detailed'])
+                        
+                        self.update_batch_log(f"✓ Saved: {output_basename}")
+                    except Exception as e:
+                        self.update_batch_log(f"✗ Error saving transcription: {str(e)}")
+                        continue
+                    
+                # Add to Notion if enabled
+                if self.notion_enabled.get():
+                    if groq_result:
+                        success, message = self.notion_api.add_transcription_to_notion(
+                            video_file, transcription['detailed'], transcription.get('duration', None), groq_result
+                        )
+                    else:
                         success, message = self.notion_api.add_transcription_to_notion(
                             video_file, transcription['detailed'], transcription.get('duration', None)
                         )
-                        if success:
-                            self.update_batch_log(f"✓ Added to Notion: {video_basename}")
-                        else:
-                            self.update_batch_log(f"✗ Notion error: {message}")
+                        
+                    if success:
+                        self.update_batch_log(f"✓ Added to Notion: {video_basename}")
+                    else:
+                        self.update_batch_log(f"✗ Notion error: {message}")
                             
-                except Exception as e:
-                    self.update_batch_log(f"✗ Error saving transcription: {str(e)}")
-                    continue
-                    
             except Exception as e:
                 self.update_batch_log(f"✗ Error transcribing {video_basename}: {str(e)}")
                 continue
@@ -348,6 +402,13 @@ def integrate_batch_processing(self):
     
     ttk.Checkbutton(notion_frame, text="Send to Notion after transcription", 
                   variable=self.notion_enabled).pack(side=tk.LEFT, padx=5)
+    
+    # Groq integration checkbox
+    groq_frame = ttk.Frame(batch_options_frame)
+    groq_frame.pack(fill=tk.X, pady=5)
+    
+    ttk.Checkbutton(groq_frame, text="Process with Groq AI after transcription", 
+                  variable=self.groq_enabled).pack(side=tk.LEFT, padx=5)
     
     # Action buttons
     batch_button_frame = ttk.Frame(batch_tab)

@@ -40,7 +40,7 @@ class NotionIntegration:
         except Exception as e:
             return False, f"Connection error: {str(e)}"
     
-    def add_transcription_to_notion(self, video_path, transcription_text, duration=None):
+    def add_transcription_to_notion(self, video_path, transcription_text, duration=None, groq_result=None):
         """
         Add a new page to the Notion database with the transcription
         
@@ -48,6 +48,7 @@ class NotionIntegration:
             video_path (str): Path to the original video file
             transcription_text (str): The transcription text to add
             duration (float, optional): Duration of the video in seconds
+            groq_result (dict, optional): Processed result from Groq API containing title and summary
         
         Returns:
             tuple: (success, message)
@@ -62,9 +63,12 @@ class NotionIntegration:
         # Prepare page data
         current_date = datetime.now().strftime("%Y-%m-%d")
         
-        # Create the page properties based on your actual Notion database fields
-        # IMPORTANT: You need to customize these property names to match your Notion database exactly
-        # Only keep the "Name" property (which is required) and remove any properties that don't exist
+        # Determine the page title - use Groq's title if available, otherwise use default
+        page_title = f"Transcription: {video_name}"
+        if groq_result and "title" in groq_result:
+            page_title = groq_result["title"]
+        
+        # Create the page properties
         page_data = {
             "parent": {"database_id": self.database_id},
             "properties": {
@@ -72,23 +76,26 @@ class NotionIntegration:
                     "title": [
                         {
                             "text": {
-                                "content": f"Transcription: {video_name}"
+                                "content": page_title
                             }
                         }
                     ]
                 },
-                # Remove or comment out properties that don't exist in your database
-                # Uncomment and adjust property names to match your database exactly
-                # "Created": {  # Replace "Date" with your actual date property name if you have one
-                #     "date": {
-                #         "start": current_date
-                #     }
-                # },
-                # "Tags": {  # Replace "Status" with your actual status/select property name if you have one
-                #     "select": {
-                #         "name": "Completed"
-                #     }
-                # }
+                # Add video name and date properties
+                "Video Name": {
+                    "rich_text": [
+                        {
+                            "text": {
+                                "content": video_name
+                            }
+                        }
+                    ]
+                },
+                "Date": {
+                    "date": {
+                        "start": current_date
+                    }
+                }
             },
             "children": [
                 {
@@ -141,13 +148,49 @@ class NotionIntegration:
                 }
             })
         
-        # Add the transcription text
-        # Notion API has a limit for block content, so we need to split long transcriptions
-        max_block_size = 2000  # Notion has a character limit per block
-        
-        # Split the transcription into chunks if it's too long
-        text_chunks = [transcription_text[i:i+max_block_size] 
-                      for i in range(0, len(transcription_text), max_block_size)]
+        # Add Groq summary if available
+        if groq_result and "summary" in groq_result:
+            # Add a divider before the summary
+            page_data["children"].append({
+                "object": "block",
+                "type": "divider",
+                "divider": {}
+            })
+            
+            # Add heading for the summary
+            page_data["children"].append({
+                "object": "block",
+                "type": "heading_3",
+                "heading_3": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": "Summary:"
+                            }
+                        }
+                    ]
+                }
+            })
+            
+            # Add the summary text - split into paragraphs for better readability
+            summary_paragraphs = groq_result["summary"].split('\n\n')
+            for paragraph in summary_paragraphs:
+                if paragraph.strip():
+                    page_data["children"].append({
+                        "object": "block",
+                        "type": "paragraph",
+                        "paragraph": {
+                            "rich_text": [
+                                {
+                                    "type": "text",
+                                    "text": {
+                                        "content": paragraph.strip()
+                                    }
+                                }
+                            ]
+                        }
+                    })
         
         # Add a divider before the transcription
         page_data["children"].append({
@@ -165,12 +208,19 @@ class NotionIntegration:
                     {
                         "type": "text",
                         "text": {
-                            "content": "Transcription Text:"
+                            "content": "Original Transcription:"
                         }
                     }
                 ]
             }
         })
+        
+        # Notion API has a limit for block content, so we need to split long transcriptions
+        max_block_size = 2000  # Notion has a character limit per block
+        
+        # Split the transcription into chunks if it's too long
+        text_chunks = [transcription_text[i:i+max_block_size] 
+                      for i in range(0, len(transcription_text), max_block_size)]
         
         # Add each chunk as a separate paragraph block
         for chunk in text_chunks:

@@ -7,6 +7,7 @@ import torch
 import whisper
 import time
 from notion_integration import NotionIntegration  # Import our Notion integration class
+from groq_integration import GroqIntegration  # Import our Groq integration class
 
 class VideoTranscriberGUI:
     def __init__(self, root):
@@ -33,8 +34,16 @@ class VideoTranscriberGUI:
         self.notion_token = tk.StringVar()
         self.notion_database_id = tk.StringVar()
         
+        # Groq integration variables
+        self.groq_enabled = tk.BooleanVar(value=False)
+        self.groq_api_key = tk.StringVar()
+        self.groq_system_prompt = tk.StringVar()
+        
         # Initialize Notion integration
         self.notion_api = NotionIntegration()
+        
+        # Initialize Groq integration
+        self.groq_api = GroqIntegration()
         
         # Create UI elements
         self.create_ui()
@@ -46,6 +55,9 @@ class VideoTranscriberGUI:
         
         # Load saved Notion settings if available
         self.load_notion_settings()
+        
+        # Load saved Groq settings if available
+        self.load_groq_settings()
         
         # Initialize batch processing
         if hasattr(self, 'integrate_batch_processing'):
@@ -67,6 +79,9 @@ class VideoTranscriberGUI:
         # Notion settings tab
         notion_tab = ttk.Frame(self.notebook)
         self.notebook.add(notion_tab, text="Notion Integration")
+        
+        # Groq settings tab
+        self.create_groq_tab()
         
         # ===== MAIN TAB =====
         # File selection frame
@@ -146,6 +161,17 @@ class VideoTranscriberGUI:
         # Status indicator for Notion
         self.notion_status = ttk.Label(notion_frame, text="Not configured", foreground="red")
         self.notion_status.pack(side=tk.LEFT, padx=5)
+        
+        # Groq integration checkbox
+        groq_frame = ttk.Frame(options_frame)
+        groq_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Checkbutton(groq_frame, text="Process with Groq AI after transcription", 
+                      variable=self.groq_enabled).pack(side=tk.LEFT, padx=5)
+        
+        # Status indicator for Groq
+        self.groq_status = ttk.Label(groq_frame, text="Not configured", foreground="red")
+        self.groq_status.pack(side=tk.LEFT, padx=5)
         
         # Action buttons
         button_frame = ttk.Frame(main_tab)
@@ -227,12 +253,113 @@ How to set up Notion integration:
         """)
         help_text.config(state=tk.DISABLED)
     
+    def create_groq_tab(self):
+        """Create the Groq API tab in the settings notebook"""
+        groq_tab = ttk.Frame(self.notebook)
+        self.notebook.add(groq_tab, text="AI Processing")
+        
+        # Groq settings frame
+        groq_settings_frame = ttk.LabelFrame(groq_tab, text="Groq API Settings", padding="10")
+        groq_settings_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Groq API Key
+        ttk.Label(groq_settings_frame, text="Groq API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.groq_key_entry = ttk.Entry(groq_settings_frame, textvariable=self.groq_api_key, width=50, show="*")
+        self.groq_key_entry.grid(row=0, column=1, padx=5, pady=5, sticky=tk.W+tk.E)
+        
+        # Show/Hide API key button
+        self.show_groq_key_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(groq_settings_frame, text="Show", variable=self.show_groq_key_var, 
+                       command=self.toggle_groq_key_visibility).grid(row=0, column=2, padx=5, pady=5)
+        
+        # System prompt
+        ttk.Label(groq_settings_frame, text="System Prompt:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        system_prompt_frame = ttk.Frame(groq_settings_frame)
+        system_prompt_frame.grid(row=1, column=1, padx=5, pady=5, sticky=tk.W+tk.E)
+        
+        self.system_prompt_text = scrolledtext.ScrolledText(system_prompt_frame, wrap=tk.WORD, height=8, width=50)
+        self.system_prompt_text.pack(fill=tk.BOTH, expand=True)
+        
+        # Set default system prompt
+        default_prompt = """You are an expert at summarizing video transcripts. Given a transcript text:
+1. Create a clear, concise title that accurately represents the core content
+2. Summarize the key points in plain language without jargon
+3. Be straightforward and avoid clickbait language
+4. Don't leave out important details from the transcript
+5. Format your response as JSON with "title" and "summary" fields"""
+        
+        self.system_prompt_text.insert(tk.END, default_prompt)
+        
+        # Groq API buttons
+        groq_buttons_frame = ttk.Frame(groq_tab)
+        groq_buttons_frame.pack(fill=tk.X, pady=10)
+        
+        ttk.Button(groq_buttons_frame, text="Test Connection", command=self.test_groq_connection).pack(side=tk.LEFT, padx=5)
+        ttk.Button(groq_buttons_frame, text="Save Settings", command=self.save_groq_settings).pack(side=tk.LEFT, padx=5)
+        ttk.Button(groq_buttons_frame, text="Reset to Default Prompt", command=self.reset_system_prompt).pack(side=tk.LEFT, padx=5)
+        
+        # Enable Groq checkbox in main and batch processing tabs
+        groq_enable_frame = ttk.Frame(groq_settings_frame)
+        groq_enable_frame.grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=10)
+        
+        ttk.Checkbutton(groq_enable_frame, text="Use Groq API to process and summarize transcriptions", 
+                      variable=self.groq_enabled).pack(side=tk.LEFT, padx=5)
+        
+        # Status indicator for Groq
+        self.groq_status = ttk.Label(groq_enable_frame, text="Not configured", foreground="red")
+        self.groq_status.pack(side=tk.LEFT, padx=5)
+        
+        # Groq help text
+        help_frame = ttk.LabelFrame(groq_tab, text="Help", padding="10")
+        help_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        help_text = scrolledtext.ScrolledText(help_frame, wrap=tk.WORD, height=10)
+        help_text.pack(fill=tk.BOTH, expand=True)
+        help_text.insert(tk.END, """
+How to set up Groq API integration:
+
+1. Sign up for a Groq account at https://console.groq.com
+2. Create an API key in your Groq dashboard
+3. Copy the API key and paste it in the field above
+4. Customize the system prompt if desired
+5. Click "Test Connection" to verify your API key works
+6. Click "Save Settings" to store your configuration
+
+The Groq API will:
+- Create a clear, readable title for your transcription
+- Generate a summary that removes jargon and filler content
+- Enhance the readability of the transcription
+- Both the title and summary will be included when saving to Notion
+        """)
+        help_text.config(state=tk.DISABLED)
+        
+        groq_settings_frame.columnconfigure(1, weight=1)
+
     def toggle_token_visibility(self):
         """Toggle the visibility of the Notion API token"""
         if self.show_token_var.get():
             self.token_entry.config(show="")
         else:
             self.token_entry.config(show="*")
+    
+    def toggle_groq_key_visibility(self):
+        """Toggle the visibility of the Groq API key"""
+        if self.show_groq_key_var.get():
+            self.groq_key_entry.config(show="")
+        else:
+            self.groq_key_entry.config(show="*")
+
+    def reset_system_prompt(self):
+        """Reset the system prompt to default"""
+        default_prompt = """You are an expert at summarizing video transcripts. Given a transcript text:
+1. Create a clear, concise title that accurately represents the core content
+2. Summarize the key points in plain language without jargon
+3. Be straightforward and avoid clickbait language
+4. Don't leave out important details from the transcript
+5. Format your response as JSON with "title" and "summary" fields"""
+        
+        self.system_prompt_text.delete(1.0, tk.END)
+        self.system_prompt_text.insert(tk.END, default_prompt)
     
     def test_notion_connection(self):
         """Test the connection to Notion API"""
@@ -256,6 +383,27 @@ How to set up Notion integration:
         else:
             messagebox.showerror("Error", message)
             self.notion_status.config(text="Error", foreground="red")
+
+    def test_groq_connection(self):
+        """Test the connection to Groq API"""
+        api_key = self.groq_api_key.get()
+        
+        if not api_key:
+            messagebox.showerror("Error", "Please enter your Groq API Key.")
+            return
+        
+        # Update the Groq API with the new credentials
+        self.groq_api.set_api_key(api_key)
+        
+        # Test the connection
+        success, message = self.groq_api.test_connection()
+        
+        if success:
+            messagebox.showinfo("Success", message)
+            self.groq_status.config(text="Configured", foreground="green")
+        else:
+            messagebox.showerror("Error", message)
+            self.groq_status.config(text="Error", foreground="red")
     
     def save_notion_settings(self):
         """Save Notion settings to a config file"""
@@ -284,6 +432,33 @@ How to set up Notion integration:
             self.notion_status.config(text="Configured", foreground="green")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to save settings: {str(e)}")
+
+    def save_groq_settings(self):
+        """Save Groq settings to a config file"""
+        api_key = self.groq_api_key.get()
+        system_prompt = self.system_prompt_text.get(1.0, tk.END).strip()
+        
+        if not api_key:
+            messagebox.showerror("Error", "Please enter your Groq API Key.")
+            return
+        
+        try:
+            # Create config directory if it doesn't exist
+            config_dir = os.path.join(os.path.expanduser("~"), ".videotranscriber")
+            os.makedirs(config_dir, exist_ok=True)
+            
+            # Save settings to config file
+            config_file = os.path.join(config_dir, "groq_config.txt")
+            with open(config_file, "w") as f:
+                f.write(f"{api_key}\n{system_prompt}")
+            
+            messagebox.showinfo("Success", "Groq settings saved successfully.")
+            
+            # Update the Groq API with the new credentials
+            self.groq_api.set_api_key(api_key)
+            self.groq_status.config(text="Configured", foreground="green")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save settings: {str(e)}")
     
     def load_notion_settings(self):
         """Load Notion settings from config file"""
@@ -310,6 +485,39 @@ How to set up Notion integration:
                             self.notion_status.config(text="Configured", foreground="green")
         except Exception as e:
             print(f"Error loading Notion settings: {str(e)}")
+
+    def load_groq_settings(self):
+        """Load Groq settings from config file"""
+        try:
+            config_file = os.path.join(os.path.expanduser("~"), ".videotranscriber", "groq_config.txt")
+            
+            if os.path.exists(config_file):
+                with open(config_file, "r") as f:
+                    content = f.read()
+                    parts = content.split("\n", 1)
+                    
+                    api_key = parts[0].strip()
+                    system_prompt = parts[1].strip() if len(parts) > 1 else ""
+                    
+                    self.groq_api_key.set(api_key)
+                    
+                    # Set system prompt in text widget (must be done after widget creation)
+                    def set_prompt():
+                        if hasattr(self, "system_prompt_text"):
+                            self.system_prompt_text.delete(1.0, tk.END)
+                            self.system_prompt_text.insert(tk.END, system_prompt)
+                    
+                    self.root.after(100, set_prompt)
+                    
+                    # Update the Groq API with the loaded credentials
+                    self.groq_api.set_api_key(api_key)
+                    
+                    # Test connection
+                    success, _ = self.groq_api.test_connection()
+                    if success and hasattr(self, "groq_status"):
+                        self.groq_status.config(text="Configured", foreground="green")
+        except Exception as e:
+            print(f"Error loading Groq settings: {str(e)}")
     
     def browse_video(self):
         filename = filedialog.askopenfilename(
@@ -441,7 +649,7 @@ How to set up Notion integration:
             messagebox.showerror("Error", f"An error occurred during transcription: {str(e)}")
             return None
     
-    def add_to_notion(self, video_path, transcription_text, duration=None):
+    def add_to_notion(self, video_path, transcription_text, duration=None, groq_result=None):
         """Add the transcription to Notion"""
         if not self.notion_enabled.get():
             return True, "Notion integration disabled."
@@ -449,7 +657,7 @@ How to set up Notion integration:
         self.update_progress(95, "Adding transcription to Notion...")
         
         success, message = self.notion_api.add_transcription_to_notion(
-            video_path, transcription_text, duration
+            video_path, transcription_text, duration, groq_result
         )
         
         if success:
@@ -477,29 +685,92 @@ How to set up Notion integration:
             transcription = self.transcribe_with_whisper(audio_file, model_name, language, word_timestamps)
             
             if transcription:
-                # Write transcription to file
-                try:
-                    with open(output_file, "w", encoding="utf-8") as file:
-                        file.write(transcription['detailed'])
+                # Process with Groq if enabled
+                groq_result = None
+                if self.groq_enabled.get():
+                    self.update_progress(90, "Processing transcription with Groq AI...")
                     
-                    # Preview in the text area
-                    preview_text = transcription['detailed']
-                    if len(preview_text) > 2000:
-                        preview_text = preview_text[:2000] + "...\n\n[Transcript truncated in preview. Full text saved to file.]"
+                    # Get the system prompt from the text widget
+                    system_prompt = self.system_prompt_text.get(1.0, tk.END).strip() if hasattr(self, "system_prompt_text") else None
                     
-                    self.root.after(0, lambda: self.update_output_text(preview_text))
+                    # Process with Groq
+                    success, result = self.groq_api.summarize_transcript(transcription['text'], system_prompt)
                     
-                    self.update_progress(95, f"Transcription saved to {os.path.basename(output_file)}")
-                    
-                    # Add to Notion if enabled
-                    if self.notion_enabled.get():
-                        self.add_to_notion(video_file, transcription['detailed'], transcription.get('duration', None))
-                    else:
-                        self.update_progress(100, f"Transcription saved to {os.path.basename(output_file)}")
+                    if success:
+                        groq_result = result
+                        self.update_progress(93, "Groq AI processing complete")
                         
-                except Exception as e:
-                    self.update_progress(0, f"Error saving transcription: {str(e)}")
-                    messagebox.showerror("Error", f"Failed to save transcription: {str(e)}")
+                        # Preview in the text area with Groq summary
+                        preview_text = f"Title: {groq_result['title']}\n\n"
+                        preview_text += f"Summary: {groq_result['summary']}\n\n"
+                        preview_text += "--- Original Transcript ---\n\n"
+                        preview_text += transcription['detailed']
+                        
+                        if len(preview_text) > 2000:
+                            preview_text = preview_text[:2000] + "...\n\n[Content truncated in preview. Full text saved to file.]"
+                        
+                        self.root.after(0, lambda: self.update_output_text(preview_text))
+                        
+                        # Write enhanced transcription to file
+                        try:
+                            with open(output_file, "w", encoding="utf-8") as file:
+                                file.write(f"Title: {groq_result['title']}\n\n")
+                                file.write(f"Summary: {groq_result['summary']}\n\n")
+                                file.write("--- Original Transcript ---\n\n")
+                                file.write(transcription['detailed'])
+                            
+                            self.update_progress(95, f"Enhanced transcription saved to {os.path.basename(output_file)}")
+                        except Exception as e:
+                            self.update_progress(90, f"Error saving enhanced transcription: {str(e)}")
+                            messagebox.showerror("Error", f"Failed to save enhanced transcription: {str(e)}")
+                    else:
+                        self.update_progress(90, f"Error processing with Groq AI: {result}")
+                        messagebox.showwarning("Groq Processing Error", 
+                                             f"Failed to process with Groq AI: {result}\n\nContinuing with original transcription.")
+                        
+                        # Write original transcription to file
+                        try:
+                            with open(output_file, "w", encoding="utf-8") as file:
+                                file.write(transcription['detailed'])
+                            
+                            # Preview in the text area
+                            preview_text = transcription['detailed']
+                            if len(preview_text) > 2000:
+                                preview_text = preview_text[:2000] + "...\n\n[Transcript truncated in preview. Full text saved to file.]"
+                            
+                            self.root.after(0, lambda: self.update_output_text(preview_text))
+                            
+                            self.update_progress(95, f"Transcription saved to {os.path.basename(output_file)}")
+                        except Exception as e:
+                            self.update_progress(0, f"Error saving transcription: {str(e)}")
+                            messagebox.showerror("Error", f"Failed to save transcription: {str(e)}")
+                else:
+                    # Write original transcription to file
+                    try:
+                        with open(output_file, "w", encoding="utf-8") as file:
+                            file.write(transcription['detailed'])
+                        
+                        # Preview in the text area
+                        preview_text = transcription['detailed']
+                        if len(preview_text) > 2000:
+                            preview_text = preview_text[:2000] + "...\n\n[Transcript truncated in preview. Full text saved to file.]"
+                        
+                        self.root.after(0, lambda: self.update_output_text(preview_text))
+                        
+                        self.update_progress(95, f"Transcription saved to {os.path.basename(output_file)}")
+                    except Exception as e:
+                        self.update_progress(0, f"Error saving transcription: {str(e)}")
+                        messagebox.showerror("Error", f"Failed to save transcription: {str(e)}")
+                
+                # Add to Notion if enabled
+                if self.notion_enabled.get():
+                    # Pass the groq_result to the add_to_notion method
+                    if groq_result:
+                        self.add_to_notion(video_file, transcription['detailed'], transcription.get('duration', None), groq_result)
+                    else:
+                        self.add_to_notion(video_file, transcription['detailed'], transcription.get('duration', None))
+                else:
+                    self.update_progress(100, f"Transcription saved to {os.path.basename(output_file)}")
             
             # Clean up
             if not keep_audio and os.path.exists(audio_file):
@@ -536,6 +807,13 @@ How to set up Notion integration:
             if not self.notion_token.get() or not self.notion_database_id.get():
                 messagebox.showerror("Error", "Notion integration is enabled but not configured. "
                                      "Please configure it in the Notion Integration tab or disable it.")
+                return
+        
+        # Check if Groq is enabled but not configured
+        if self.groq_enabled.get():
+            if not self.groq_api_key.get():
+                messagebox.showerror("Error", "Groq AI processing is enabled but not configured. "
+                                   "Please configure it in the AI Processing tab or disable it.")
                 return
         
         # Check if required packages are installed
