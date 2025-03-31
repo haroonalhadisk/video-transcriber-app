@@ -3,25 +3,29 @@ import subprocess
 import threading
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox, scrolledtext
-import speech_recognition as sr
+import torch
+import whisper
+import time
 
 class VideoTranscriberGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Video Transcriber")
-        self.root.geometry("700x500")
+        self.root.title("Video Transcriber - Whisper AI")
+        self.root.geometry("750x550")
         self.root.resizable(True, True)
         
-        # Set application icon and style
-        self.root.minsize(600, 450)
+        # Set application style
+        self.root.minsize(650, 500)
         
         # Variables
         self.video_path = tk.StringVar()
         self.output_path = tk.StringVar()
-        self.language_var = tk.StringVar(value="en-US")
+        self.model_var = tk.StringVar(value="base")
+        self.language_var = tk.StringVar(value="en")
         self.keep_audio_var = tk.BooleanVar(value=False)
         self.progress_var = tk.DoubleVar(value=0)
         self.status_var = tk.StringVar(value="Ready")
+        self.word_timestamps_var = tk.BooleanVar(value=True)
         
         # Create UI elements
         self.create_ui()
@@ -29,6 +33,7 @@ class VideoTranscriberGUI:
         # Threading variables
         self.transcription_thread = None
         self.is_transcribing = False
+        self.whisper_model = None
     
     def create_ui(self):
         # Main frame
@@ -49,9 +54,29 @@ class VideoTranscriberGUI:
         ttk.Entry(file_frame, textvariable=self.output_path, width=50).grid(row=1, column=1, padx=5, pady=5, sticky=tk.W+tk.E)
         ttk.Button(file_frame, text="Browse", command=self.browse_output).grid(row=1, column=2, padx=5, pady=5)
         
+        file_frame.columnconfigure(1, weight=1)
+        
         # Options frame
-        options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
+        options_frame = ttk.LabelFrame(main_frame, text="Transcription Options", padding="10")
         options_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Model selection
+        model_frame = ttk.Frame(options_frame)
+        model_frame.pack(fill=tk.X, pady=5)
+        
+        ttk.Label(model_frame, text="Whisper Model:").pack(side=tk.LEFT, padx=5)
+        
+        models = {
+            "Tiny (Fast, Less Accurate)": "tiny",
+            "Base (Balanced)": "base",
+            "Small (Better Accuracy)": "small",
+            "Medium (High Accuracy)": "medium",
+            "Large (Best Quality, Slow)": "large"
+        }
+        
+        model_combobox = ttk.Combobox(model_frame, textvariable=self.model_var, 
+                                     values=list(models.values()), width=15)
+        model_combobox.pack(side=tk.LEFT, padx=5)
         
         # Language selection
         language_frame = ttk.Frame(options_frame)
@@ -60,23 +85,27 @@ class VideoTranscriberGUI:
         ttk.Label(language_frame, text="Language:").pack(side=tk.LEFT, padx=5)
         
         languages = {
-            "English (US)": "en-US",
-            "English (UK)": "en-GB",
-            "Spanish": "es-ES",
-            "French": "fr-FR",
-            "German": "de-DE",
+            "English": "en",
+            "Spanish": "es",
+            "French": "fr",
+            "German": "de",
             "Japanese": "ja",
             "Korean": "ko",
-            "Chinese (Mandarin)": "zh-CN"
+            "Chinese": "zh",
+            "Auto-detect": None
         }
         
         language_combobox = ttk.Combobox(language_frame, textvariable=self.language_var, 
                                         values=list(languages.values()), width=10)
         language_combobox.pack(side=tk.LEFT, padx=5)
         
+        # Timestamp checkbox
+        ttk.Checkbutton(options_frame, text="Include word-level timestamps", 
+                      variable=self.word_timestamps_var).pack(anchor=tk.W, pady=5)
+        
         # Keep audio checkbox
         ttk.Checkbutton(options_frame, text="Keep extracted audio file", 
-                        variable=self.keep_audio_var).pack(anchor=tk.W, pady=5)
+                      variable=self.keep_audio_var).pack(anchor=tk.W, pady=5)
         
         # Action buttons
         button_frame = ttk.Frame(main_frame)
@@ -116,7 +145,7 @@ class VideoTranscriberGUI:
             self.video_path.set(filename)
             # Auto-create output path
             if not self.output_path.get():
-                output_file = os.path.splitext(filename)[0] + "_transcription.txt"
+                output_file = os.path.splitext(filename)[0] + "_transcript.txt"
                 self.output_path.set(output_file)
     
     def browse_output(self):
@@ -161,28 +190,72 @@ class VideoTranscriberGUI:
             messagebox.showerror("Error", "FFmpeg not found. Please install FFmpeg and make sure it's in your PATH.")
             return False
     
-    def transcribe_audio(self, audio_file, language):
-        self.update_progress(40, "Starting transcription (this may take some time)...")
-        recognizer = sr.Recognizer()
+    def format_timestamp(self, seconds):
+        """Convert seconds to HH:MM:SS.MS format"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        seconds = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+    
+    def transcribe_with_whisper(self, audio_file, model_name, language, word_timestamps):
+        self.update_progress(40, f"Loading Whisper {model_name} model (this may take some time)...")
         
         try:
-            with sr.AudioFile(audio_file) as source:
-                self.update_progress(50, "Reading audio file...")
-                audio_data = recognizer.record(source)
+            # Check for GPU
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            if device == "cuda":
+                self.update_progress(45, f"Using GPU acceleration with {device}")
+            else:
+                self.update_progress(45, f"Using CPU for processing (slower)")
             
-            self.update_progress(60, "Recognizing speech (this may take some time)...")
-            text = recognizer.recognize_google(audio_data, language=language)
+            # Load Whisper model
+            if self.whisper_model is None or self.whisper_model.model.is_multilingual != (language is not None):
+                self.whisper_model = whisper.load_model(model_name, device=device)
             
-            self.update_progress(90, "Transcription completed")
-            return text
-        except sr.UnknownValueError:
-            self.update_progress(0, "Speech recognition could not understand the audio")
-            messagebox.showerror("Error", "The audio could not be understood. Try a different video or check audio quality.")
-            return None
-        except sr.RequestError as e:
-            self.update_progress(0, f"Could not request results from Google Speech Recognition service; {e}")
-            messagebox.showerror("Error", f"Could not connect to Google Speech Recognition service: {e}")
-            return None
+            self.update_progress(50, "Model loaded. Transcribing audio...")
+            
+            # Run transcription
+            transcribe_options = {
+                "task": "transcribe",
+                "verbose": False,
+                "word_timestamps": word_timestamps,
+            }
+            
+            if language:
+                transcribe_options["language"] = language
+            
+            start_time = time.time()
+            result = self.whisper_model.transcribe(audio_file, **transcribe_options)
+            elapsed = time.time() - start_time
+            
+            self.update_progress(90, f"Transcription completed in {elapsed:.2f} seconds")
+            
+            # Format output based on word timestamps option
+            if word_timestamps and 'words' in result:
+                # Create detailed output with word-level timestamps
+                detailed_text = result['text']
+                
+                # Create a timestamped transcript
+                timestamped_text = []
+                segment_start = None
+                current_text = []
+                
+                for segment in result['segments']:
+                    segment_time = self.format_timestamp(segment['start'])
+                    segment_text = segment['text'].strip()
+                    timestamped_text.append(f"[{segment_time}] {segment_text}")
+                
+                return {
+                    'text': result['text'],
+                    'detailed': '\n'.join(timestamped_text)
+                }
+            else:
+                # Simple output without timestamps
+                return {
+                    'text': result['text'],
+                    'detailed': result['text']
+                }
+                
         except Exception as e:
             self.update_progress(0, f"Error during transcription: {str(e)}")
             messagebox.showerror("Error", f"An error occurred during transcription: {str(e)}")
@@ -191,8 +264,10 @@ class VideoTranscriberGUI:
     def transcribe_video_thread(self):
         video_file = self.video_path.get()
         output_file = self.output_path.get()
-        language = self.language_var.get()
+        model_name = self.model_var.get()
+        language = self.language_var.get() if self.language_var.get() != "None" else None
         keep_audio = self.keep_audio_var.get()
+        word_timestamps = self.word_timestamps_var.get()
         
         # Create audio file name
         audio_file = os.path.splitext(video_file)[0] + ".wav"
@@ -200,18 +275,20 @@ class VideoTranscriberGUI:
         # Extract audio from video
         if self.extract_audio_with_ffmpeg(video_file, audio_file):
             # Transcribe the audio
-            transcription = self.transcribe_audio(audio_file, language)
+            transcription = self.transcribe_with_whisper(audio_file, model_name, language, word_timestamps)
             
             if transcription:
                 # Write transcription to file
                 try:
                     with open(output_file, "w", encoding="utf-8") as file:
-                        file.write(transcription)
+                        file.write(transcription['detailed'])
                     
                     # Preview in the text area
-                    self.root.after(0, lambda: self.update_output_text(
-                        transcription[:1000] + "..." if len(transcription) > 1000 else transcription
-                    ))
+                    preview_text = transcription['detailed']
+                    if len(preview_text) > 2000:
+                        preview_text = preview_text[:2000] + "...\n\n[Transcript truncated in preview. Full text saved to file.]"
+                    
+                    self.root.after(0, lambda: self.update_output_text(preview_text))
                     
                     self.update_progress(100, f"Transcription saved to {os.path.basename(output_file)}")
                 except Exception as e:
@@ -247,6 +324,14 @@ class VideoTranscriberGUI:
             messagebox.showerror("Error", "Please specify an output file.")
             return
         
+        # Check if required packages are installed
+        try:
+            import whisper
+            import torch
+        except ImportError:
+            messagebox.showerror("Error", "Missing required packages. Please install with:\n\npip install torch openai-whisper")
+            return
+            
         # Check if already transcribing
         if self.is_transcribing:
             messagebox.showinfo("Info", "Transcription is already in progress.")
@@ -280,9 +365,23 @@ class VideoTranscriberGUI:
 
 
 def main():
+    # Check for required packages
+    try:
+        import whisper
+        import torch
+    except ImportError:
+        print("Required packages not found. Installing...")
+        subprocess.run([
+            sys.executable, "-m", "pip", "install", "torch", "openai-whisper"
+        ])
+        print("Installation complete. Please restart the application.")
+        input("Press Enter to exit...")
+        sys.exit(1)
+        
     root = tk.Tk()
     app = VideoTranscriberGUI(root)
     root.mainloop()
 
 if __name__ == "__main__":
+    import sys
     main()
