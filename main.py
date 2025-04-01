@@ -28,6 +28,10 @@ def main():
     # Import the Instagram integration functionality and attach it to the GUI class
     import instagram_integration
     VideoTranscriberGUI.integrate_instagram = instagram_integration.integrate_instagram
+    
+    # Import the Instagram saved posts integration and attach it to the GUI class
+    import instagram_saved_posts
+    VideoTranscriberGUI.integrate_instagram_saved = instagram_saved_posts.integrate_instagram_saved
         
     root = tk.Tk()
     app = VideoTranscriberGUI(root)
@@ -35,6 +39,10 @@ def main():
     # Initialize Instagram integration if enabled
     if hasattr(app, 'integrate_instagram'):
         app.integrate_instagram()
+    
+    # Initialize Instagram saved posts integration if enabled
+    if hasattr(app, 'integrate_instagram_saved'):
+        app.integrate_instagram_saved()
     
     root.mainloop()
 
