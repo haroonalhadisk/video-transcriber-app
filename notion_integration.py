@@ -12,6 +12,8 @@ class NotionIntegration:
             "Content-Type": "application/json",
             "Notion-Version": "2022-06-28"  # Use the latest Notion API version
         }
+        # Store for original URLs
+        self.video_url_map = {}
         
     def set_token(self, token):
         """Set or update the Notion API token"""
@@ -40,6 +42,16 @@ class NotionIntegration:
         except Exception as e:
             return False, f"Connection error: {str(e)}"
     
+    def store_video_url(self, video_path, original_url):
+        """
+        Store the original URL for a downloaded video
+        
+        Parameters:
+            video_path (str): Path to the video file
+            original_url (str): Original URL of the video
+        """
+        self.video_url_map[video_path] = original_url
+        
     def add_transcription_to_notion(self, video_path, transcription_text, duration=None, groq_result=None):
         """
         Add a new page to the Notion database with the transcription
@@ -68,19 +80,8 @@ class NotionIntegration:
         if groq_result and "title" in groq_result:
             page_title = groq_result["title"]
         
-        # Determine if this is an Instagram video by checking the video path or name
-        is_instagram = False
-        instagram_url = None
-        
-        # Check common Instagram patterns in the file path or name
-        if "instagram" in video_path.lower() or "_UTC_" in video_path:
-            is_instagram = True
-            # Try to extract Instagram shortcode from file name
-            # Common pattern is "date_UTC_shortcode.mp4"
-            parts = video_name.split("_UTC_")
-            if len(parts) > 1 and parts[1]:
-                shortcode = parts[1]
-                instagram_url = f"https://www.instagram.com/p/{shortcode}/"
+        # Get original URL if available
+        video_url = self.video_url_map.get(video_path)
         
         # Create the page properties
         page_data = {
@@ -114,10 +115,10 @@ class NotionIntegration:
             "children": []
         }
         
-        # Add Video URL property if it's an Instagram video
-        if is_instagram and instagram_url:
+        # Add Video URL property if available
+        if video_url:
             page_data["properties"]["Video URL"] = {
-                "url": instagram_url
+                "url": video_url
             }
         
         # Add duration information if provided
@@ -191,8 +192,8 @@ class NotionIntegration:
                 }
             })
         
-        # Add Instagram link at the bottom if available
-        if is_instagram and instagram_url:
+        # Add video link at the bottom if available
+        if video_url:
             page_data["children"].append({
                 "object": "block",
                 "type": "divider",
@@ -206,15 +207,15 @@ class NotionIntegration:
                         {
                             "type": "text",
                             "text": {
-                                "content": "Instagram Video Link: "
+                                "content": "Video Link: "
                             }
                         },
                         {
                             "type": "text",
                             "text": {
-                                "content": instagram_url,
+                                "content": video_url,
                                 "link": {
-                                    "url": instagram_url
+                                    "url": video_url
                                 }
                             }
                         }

@@ -173,6 +173,10 @@ def process_next_instagram_url(gui_instance):
         if success:
             video_path = result
             
+            # Store the original URL with the video path for Notion integration
+            if hasattr(gui_instance, 'notion_api'):
+                gui_instance.notion_api.store_video_url(video_path, current_url)
+            
             # Log success
             log_message = f"✓ Downloaded: {os.path.basename(video_path)}"
             gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))

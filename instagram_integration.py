@@ -367,6 +367,10 @@ def download_instagram_thread(gui_instance, url, output_dir, transcribe_after=Fa
             video_path = result
             update_instagram_progress(gui_instance, 100, f"Download complete: {os.path.basename(video_path)}")
             
+            # Store the original URL with the video path for Notion integration
+            if hasattr(gui_instance, 'notion_api'):
+                gui_instance.notion_api.store_video_url(video_path, url)
+            
             # Show success message
             gui_instance.root.after(0, lambda: messagebox.showinfo(
                 "Download Complete", 
