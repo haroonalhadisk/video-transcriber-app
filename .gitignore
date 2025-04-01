@@ -2,3 +2,6 @@ __pycache__/batch_processing.cpython-312.pyc
 __pycache__/notion_integration.cpython-312.pyc
 __pycache__/video_transcriber_gui.cpython-312.pyc
 __pycache__/groq_integration.cpython-312.pyc
+__pycache__/instagram_downloader.cpython-312.pyc
+__pycache__/instagram_integration.cpython-312.pyc
+__pycache__/instaloader_integration.cpython-312.pyc
