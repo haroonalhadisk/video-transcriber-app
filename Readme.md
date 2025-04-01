@@ -18,6 +18,7 @@ A GUI application that accurately transcribes speech from video files using Open
 - **Batch Processing**: Process multiple video files in a directory with a single click
 - **Notion Integration**: Automatically send transcriptions to your Notion database
 - **Instagram Video Download**: Download videos directly from Instagram posts and reels for transcription
+- **Batch Instagram Processing**: Process multiple Instagram URLs from a text file automatically
 - **Instagram Saved Posts**: Access and download videos from your Instagram saved collection for transcription
 
 ## Installation
@@ -107,6 +108,20 @@ pip install instaloader browser_cookie3
 5. **Download Only**: Click to download the video without transcribing
 6. **First-time Setup**: If Instaloader is not already installed, the app will offer to install it for you
 
+#### Batch Instagram Processing
+1. Click on the "Instagram Download" tab
+2. **Prepare URL List**: Create a text file with Instagram URLs, one per line:
+   ```
+   https://www.instagram.com/p/ABC123/
+   https://www.instagram.com/reel/XYZ789/
+   https://www.instagram.com/reel/DEF456/
+   ```
+3. **Load URLs from File**: Click the "Load URLs from File" button and select your text file
+4. **Choose Output Directory**: Specify where to save the downloaded videos
+5. **Confirm Processing**: Review the detected URLs and confirm to start batch processing
+6. **Monitor Progress**: Track progress as each video is downloaded and transcribed
+7. **Review Log**: Check the processing log for detailed information about each video
+
 #### Instagram Saved Posts
 1. Click on the "Instagram Saved" tab
 2. **Choose Output Directory**: Specify where to save the downloaded videos
@@ -149,11 +164,12 @@ pip install instaloader browser_cookie3
 2. **Speech Recognition**: Processes the audio with OpenAI's Whisper model
 3. **AI Processing**: (Optional) Sends the transcript to Groq API for summarization and title generation
 4. **Instagram Download**: (Optional) Uses Instaloader to download videos from Instagram posts and reels
-5. **Instagram Saved Posts**: (Optional) Downloads videos from your Instagram saved collection
-6. **Threading**: Runs transcription in a background thread to keep the UI responsive
-7. **Progress Updates**: Regularly updates the UI with the current status
-8. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
-9. **Notion API**: Connects to Notion's API to add transcriptions as database entries
+5. **Instagram Batch Processing**: (Optional) Processes multiple Instagram URLs from a text file in sequence
+6. **Instagram Saved Posts**: (Optional) Downloads videos from your Instagram saved collection
+7. **Threading**: Runs transcription in a background thread to keep the UI responsive
+8. **Progress Updates**: Regularly updates the UI with the current status
+9. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
+10. **Notion API**: Connects to Notion's API to add transcriptions as database entries
 
 ### Components
 
@@ -163,7 +179,7 @@ pip install instaloader browser_cookie3
 - **GPU Acceleration**: Automatically uses CUDA if available for faster processing
 - **Notion Integration**: Uses Notion's official API to create new pages in your database
 - **Groq Integration**: Uses Groq's API for AI-powered summarization and title generation
-- **Instagram Integration**: Uses Instaloader to download videos from Instagram
+- **Instagram Integration**: Uses Instaloader to download videos from Instagram posts, reels, and saved collections
 
 ## Troubleshooting
 
@@ -186,6 +202,12 @@ pip install instaloader browser_cookie3
 - For accounts with two-factor authentication (2FA), use the session file method
 - You may need to create a session file from the command line using: `instaloader --login YOUR_USERNAME`
 - If browser cookie login fails, try using username/password method instead
+
+**Batch Instagram Processing Errors**
+- Ensure your text file has one URL per line
+- Check that the URLs are valid Instagram post or reel URLs
+- Make sure Instaloader is properly installed
+- For private posts, you need to login with Instaloader separately
 
 **Slow Transcription**
 - Try a smaller model size (tiny or base)

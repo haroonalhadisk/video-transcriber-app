@@ -27,11 +27,14 @@ def main():
     
     # Import the Instagram integration functionality and attach it to the GUI class
     import instagram_integration
-    VideoTranscriberGUI.integrate_instagram = instagram_integration.integrate_instagram
+    VideoTranscriberGUI.integrate_instagram = instagram_integration.integrate_instaloader
     
-    # Import the Instagram saved posts integration and attach it to the GUI class
-    import instagram_saved_posts
-    VideoTranscriberGUI.integrate_instagram_saved = instagram_saved_posts.integrate_instagram_saved
+    # Import batch Instagram processing module if it exists
+    try:
+        import batch_instagram_integration
+        # We'll use this in instagram_integration.py with extend_instagram_integration
+    except ImportError:
+        print("Batch Instagram processing module not found. Continuing without it.")
         
     root = tk.Tk()
     app = VideoTranscriberGUI(root)
@@ -39,10 +42,6 @@ def main():
     # Initialize Instagram integration if enabled
     if hasattr(app, 'integrate_instagram'):
         app.integrate_instagram()
-    
-    # Initialize Instagram saved posts integration if enabled
-    if hasattr(app, 'integrate_instagram_saved'):
-        app.integrate_instagram_saved()
     
     root.mainloop()
 
