@@ -18,6 +18,7 @@ A GUI application that accurately transcribes speech from video files using Open
 - **Batch Processing**: Process multiple video files in a directory with a single click
 - **Notion Integration**: Automatically send transcriptions to your Notion database
 - **Instagram Video Download**: Download videos directly from Instagram posts and reels for transcription
+- **Instagram Saved Posts**: Access and download videos from your Instagram saved collection for transcription
 
 ## Installation
 
@@ -57,7 +58,7 @@ pip install openai-whisper requests
 For Instagram video download functionality:
 
 ```bash
-pip install instaloader
+pip install instaloader browser_cookie3
 ```
 
 ## Usage
@@ -106,6 +107,17 @@ pip install instaloader
 5. **Download Only**: Click to download the video without transcribing
 6. **First-time Setup**: If Instaloader is not already installed, the app will offer to install it for you
 
+#### Instagram Saved Posts
+1. Click on the "Instagram Saved" tab
+2. **Choose Output Directory**: Specify where to save the downloaded videos
+3. **Login**: Use session file (recommended for accounts with 2FA) or enter your username and password
+4. **Configure Download Options**:
+   - Choose to download all saved posts or specify a count
+   - Select content types (pictures, videos, or both)
+   - Enable auto-transcription for downloaded videos
+5. **Download Saved Posts**: Click to begin the download process
+6. **Auto-Transcription**: Downloaded videos can be automatically sent to batch processing
+
 #### Notion Integration
 1. Click on the "Notion Integration" tab
 2. **Set Up Notion**: Follow the instructions to create a Notion integration and get your API token
@@ -137,10 +149,11 @@ pip install instaloader
 2. **Speech Recognition**: Processes the audio with OpenAI's Whisper model
 3. **AI Processing**: (Optional) Sends the transcript to Groq API for summarization and title generation
 4. **Instagram Download**: (Optional) Uses Instaloader to download videos from Instagram posts and reels
-5. **Threading**: Runs transcription in a background thread to keep the UI responsive
-6. **Progress Updates**: Regularly updates the UI with the current status
-7. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
-8. **Notion API**: Connects to Notion's API to add transcriptions as database entries
+5. **Instagram Saved Posts**: (Optional) Downloads videos from your Instagram saved collection
+6. **Threading**: Runs transcription in a background thread to keep the UI responsive
+7. **Progress Updates**: Regularly updates the UI with the current status
+8. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
+9. **Notion API**: Connects to Notion's API to add transcriptions as database entries
 
 ### Components
 
@@ -161,13 +174,18 @@ pip install instaloader
 - Restart the application after installing FFmpeg
 
 **Error: Missing required packages**
-- Run `pip install torch openai-whisper requests instaloader` to install the required packages
+- Run `pip install torch openai-whisper requests instaloader browser_cookie3` to install the required packages
 - Make sure you have a compatible Python version (3.7+)
 
 **Error: 'Whisper' object has no attribute 'model'**
 - This can happen when transcribing multiple videos in sequence
 - The application has been updated to fix this issue by loading a fresh model for each transcription
 - If you still encounter this error, try restarting the application between transcriptions
+
+**Instagram Login Issues**
+- For accounts with two-factor authentication (2FA), use the session file method
+- You may need to create a session file from the command line using: `instaloader --login YOUR_USERNAME`
+- If browser cookie login fails, try using username/password method instead
 
 **Slow Transcription**
 - Try a smaller model size (tiny or base)
