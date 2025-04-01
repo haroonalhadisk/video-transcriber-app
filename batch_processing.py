@@ -122,6 +122,10 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
         
         self.update_batch_log(f"Loading Whisper {model_name} model (this may take some time)...")
         
+        # Clear any existing model to prevent memory issues
+        if hasattr(self, 'whisper_model'):
+            self.whisper_model = None
+            
         # Load a fresh model for batch processing to avoid potential state issues
         self.whisper_model = whisper.load_model(model_name, device=device)
         self.update_batch_log("Model loaded successfully.")
@@ -151,7 +155,7 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
         if self.extract_audio_with_ffmpeg(video_file, audio_file):
             # Transcribe the audio
             try:
-                # Run transcription
+                # Create a fresh instance of transcribe options for each run
                 transcribe_options = {
                     "task": "transcribe",
                     "verbose": False,
@@ -162,6 +166,12 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
                     transcribe_options["language"] = language
                 
                 start_time = time.time()
+                
+                # Ensure whisper_model exists and is valid
+                if not hasattr(self, 'whisper_model') or self.whisper_model is None:
+                    self.update_batch_log("Reloading Whisper model...")
+                    self.whisper_model = whisper.load_model(model_name, device=device)
+                
                 result = self.whisper_model.transcribe(audio_file, **transcribe_options)
                 elapsed = time.time() - start_time
                 
@@ -278,7 +288,8 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
     else:
         self.update_batch_status(f"Batch processing canceled. Processed {self.processed_count} of {self.total_videos} files.")
     
-    # Reset state
+    # Reset state and clear model reference to free memory
+    self.whisper_model = None
     self.is_batch_processing = False
     self.root.after(0, lambda: self.batch_cancel_button.config(state=tk.DISABLED))
 

@@ -587,6 +587,9 @@ The Groq API will:
         self.update_progress(40, f"Loading Whisper {model_name} model (this may take some time)...")
         
         try:
+            # Import whisper here to ensure it's fresh
+            import whisper
+            
             # Check for GPU
             device = "cuda" if torch.cuda.is_available() else "cpu"
             if device == "cuda":
@@ -594,9 +597,9 @@ The Groq API will:
             else:
                 self.update_progress(45, f"Using CPU for processing (slower)")
             
-            # Load Whisper model
-            if self.whisper_model is None or self.whisper_model.model.is_multilingual != (language is not None):
-                self.whisper_model = whisper.load_model(model_name, device=device)
+            # Always load a fresh model instance for each transcription
+            # This helps prevent the "'Whisper' object has no attribute 'model'" error
+            whisper_model = whisper.load_model(model_name, device=device)
             
             self.update_progress(50, "Model loaded. Transcribing audio...")
             
@@ -611,7 +614,7 @@ The Groq API will:
                 transcribe_options["language"] = language
             
             start_time = time.time()
-            result = self.whisper_model.transcribe(audio_file, **transcribe_options)
+            result = whisper_model.transcribe(audio_file, **transcribe_options)
             elapsed = time.time() - start_time
             
             self.update_progress(90, f"Transcription completed in {elapsed:.2f} seconds")
