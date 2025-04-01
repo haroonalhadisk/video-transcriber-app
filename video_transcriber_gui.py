@@ -671,6 +671,8 @@ The Groq API will:
         
         return success, message
     
+    # Update the transcribe_video_thread method in video_transcriber_gui.py
+
     def transcribe_video_thread(self):
         video_file = self.video_path.get()
         output_file = self.output_path.get()
@@ -696,8 +698,10 @@ The Groq API will:
                     # Get the system prompt from the text widget
                     system_prompt = self.system_prompt_text.get(1.0, tk.END).strip() if hasattr(self, "system_prompt_text") else None
                     
-                    # Process with Groq
-                    success, result = self.groq_api.summarize_transcript(transcription['text'], system_prompt)
+                    # Process with Groq - pass the video file path for error tracking
+                    success, result = self.groq_api.summarize_transcript(
+                        transcription['text'], system_prompt, video_file
+                    )
                     
                     if success:
                         groq_result = result
@@ -725,11 +729,11 @@ The Groq API will:
                             self.update_progress(95, f"Enhanced transcription saved to {os.path.basename(output_file)}")
                         except Exception as e:
                             self.update_progress(90, f"Error saving enhanced transcription: {str(e)}")
-                            messagebox.showerror("Error", f"Failed to save enhanced transcription: {str(e)}")
+                            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to save enhanced transcription: {str(e)}"))
                     else:
-                        self.update_progress(90, f"Error processing with Groq AI: {result}")
-                        messagebox.showwarning("Groq Processing Error", 
-                                             f"Failed to process with Groq AI: {result}\n\nContinuing with original transcription.")
+                        # Log the error but don't show a popup
+                        self.update_progress(90, f"Note: Groq AI processing issue - using original transcription")
+                        print(f"Groq processing issue: {result}")
                         
                         # Write original transcription to file
                         try:
@@ -746,7 +750,7 @@ The Groq API will:
                             self.update_progress(95, f"Transcription saved to {os.path.basename(output_file)}")
                         except Exception as e:
                             self.update_progress(0, f"Error saving transcription: {str(e)}")
-                            messagebox.showerror("Error", f"Failed to save transcription: {str(e)}")
+                            self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to save transcription: {str(e)}"))
                 else:
                     # Write original transcription to file
                     try:
@@ -763,7 +767,7 @@ The Groq API will:
                         self.update_progress(95, f"Transcription saved to {os.path.basename(output_file)}")
                     except Exception as e:
                         self.update_progress(0, f"Error saving transcription: {str(e)}")
-                        messagebox.showerror("Error", f"Failed to save transcription: {str(e)}")
+                        self.root.after(0, lambda: messagebox.showerror("Error", f"Failed to save transcription: {str(e)}"))
                 
                 # Add to Notion if enabled
                 if self.notion_enabled.get():

@@ -8,6 +8,7 @@ A GUI application that accurately transcribes speech from video files using Open
 
 - **High-Quality Transcription**: Uses Whisper AI for state-of-the-art speech recognition
 - **AI-Powered Summaries**: Processes transcriptions with Groq API to create clear, jargon-free summaries and titles
+- **Robust Error Handling**: Gracefully handles empty transcripts and API errors during batch processing
 - **User-Friendly Interface**: Simple GUI for selecting and transcribing videos
 - **Multiple Model Options**: Choose from tiny, base, small, medium, or large models to balance speed and accuracy
 - **Multilingual Support**: Works with 99 languages with automatic language detection
@@ -16,6 +17,7 @@ A GUI application that accurately transcribes speech from video files using Open
 - **Transcription Preview**: See a preview of the transcription in the application
 - **Local Processing**: All transcription happens locally on your machine with no data sent to external servers (except for optional AI processing)
 - **Batch Processing**: Process multiple video files in a directory with a single click
+- **Error Reporting**: Comprehensive error logs for batch processing with Groq
 - **Enhanced Notion Integration**: Automatically send transcriptions to your Notion database with:
   - Video links for Instagram content
   - Video descriptions and extracted hashtags
@@ -102,6 +104,7 @@ pip install instaloader browser_cookie3
 6. **Start Batch Processing**: Click the "Start Batch Transcription" button
 7. **Monitor Progress**: Track the overall progress bar and view the processing log
 8. **Batch Results**: Each video will be transcribed and saved as a separate text file in the output directory
+9. **Error Reports**: If any Groq processing issues occur, a detailed error report will be saved in the output directory
 
 #### Instagram Video Download
 1. Click on the "Instagram Download" tab
@@ -125,6 +128,7 @@ pip install instaloader browser_cookie3
 5. **Confirm Processing**: Review the detected URLs and confirm to start batch processing
 6. **Monitor Progress**: Track progress as each video is downloaded and transcribed
 7. **Review Log**: Check the processing log for detailed information about each video
+8. **Error Handling**: The system will continue processing even if some videos have issues with Groq
 
 #### Instagram Saved Posts
 1. Click on the "Instagram Saved" tab
@@ -167,6 +171,11 @@ pip install instaloader browser_cookie3
    - A clear, concise title that summarizes the content
    - A jargon-free summary of the key points
    - The original transcript with timestamps (if enabled)
+6. **Error Handling**: The system handles Groq processing errors gracefully:
+   - Empty transcripts are detected and skipped
+   - API errors are automatically retried once
+   - Processing continues even when Groq encounters issues
+   - A detailed error report is generated at the end of batch processing
 
 ## Technical Details
 
@@ -175,13 +184,14 @@ pip install instaloader browser_cookie3
 1. **Audio Extraction**: Uses FFmpeg to extract the audio track from the video file
 2. **Speech Recognition**: Processes the audio with OpenAI's Whisper model
 3. **AI Processing**: (Optional) Sends the transcript to Groq API for summarization and title generation
-4. **Instagram Download**: (Optional) Uses Instaloader to download videos from Instagram posts and reels
-5. **Instagram Batch Processing**: (Optional) Processes multiple Instagram URLs from a text file in sequence
-6. **Instagram Saved Posts**: (Optional) Downloads videos from your Instagram saved collection
-7. **Threading**: Runs transcription in a background thread to keep the UI responsive
-8. **Progress Updates**: Regularly updates the UI with the current status
-9. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
-10. **Notion API**: Connects to Notion's API to add transcriptions as database entries with:
+4. **Error Management**: Handles Groq API errors with a retry mechanism and comprehensive logging
+5. **Instagram Download**: (Optional) Uses Instaloader to download videos from Instagram posts and reels
+6. **Instagram Batch Processing**: (Optional) Processes multiple Instagram URLs from a text file in sequence
+7. **Instagram Saved Posts**: (Optional) Downloads videos from your Instagram saved collection
+8. **Threading**: Runs transcription in a background thread to keep the UI responsive
+9. **Progress Updates**: Regularly updates the UI with the current status
+10. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
+11. **Notion API**: Connects to Notion's API to add transcriptions as database entries with:
     - Video URLs, descriptions, and hashtags
     - Properly formatted transcription content with section headings
     - Multi-select properties for categorization via hashtags
@@ -194,6 +204,7 @@ pip install instaloader browser_cookie3
 - **GPU Acceleration**: Automatically uses CUDA if available for faster processing
 - **Notion Integration**: Uses Notion's official API to create new pages in your database
 - **Groq Integration**: Uses Groq's API for AI-powered summarization and title generation
+- **Error Handling**: Implements retry mechanism and comprehensive error reporting for Groq processing
 - **Instagram Integration**: Uses Instaloader to download videos from Instagram posts, reels, and saved collections
 
 ## Troubleshooting
@@ -212,6 +223,12 @@ pip install instaloader browser_cookie3
 - This can happen when transcribing multiple videos in sequence
 - The application has been updated to fix this issue by loading a fresh model for each transcription
 - If you still encounter this error, try restarting the application between transcriptions
+
+**Groq API Processing Issues**
+- For videos with no speech or very short transcripts, the system will skip Groq processing
+- If Groq API returns errors, the system will retry once and then continue with the original transcript
+- A comprehensive error report is saved at the end of batch processing
+- Check the batch log for details on which files had issues
 
 **Instagram Login Issues**
 - For accounts with two-factor authentication (2FA), use the session file method

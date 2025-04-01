@@ -93,6 +93,8 @@ def start_batch_transcription(self):
     self.batch_thread.daemon = True
     self.batch_thread.start()
 
+# Update the relevant part of batch_transcribe_videos_thread in batch_processing.py
+
 def batch_transcribe_videos_thread(self, video_files, output_dir):
     """Process multiple video files in a thread"""
     # Import required modules inside the thread to ensure they're available
@@ -135,6 +137,9 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
         self.is_batch_processing = False
         self.root.after(0, lambda: self.batch_cancel_button.config(state=tk.DISABLED))
         return
+    
+    # Keep track of videos with Groq processing issues
+    groq_issues = []
     
     # Process each video file
     for i, video_file in enumerate(video_files):
@@ -208,8 +213,10 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
                 if self.groq_enabled.get():
                     self.update_batch_log(f"Processing with Groq AI: {video_basename}")
                     
-                    # Process with Groq
-                    success, result = self.groq_api.summarize_transcript(transcription['text'], system_prompt)
+                    # Process with Groq - pass the video file path for error tracking
+                    success, result = self.groq_api.summarize_transcript(
+                        transcription['text'], system_prompt, video_file
+                    )
                     
                     if success:
                         groq_result = result
@@ -228,7 +235,9 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
                             self.update_batch_log(f"✗ Error saving enhanced transcription: {str(e)}")
                             continue
                     else:
-                        self.update_batch_log(f"✗ Groq processing failed: {result}")
+                        self.update_batch_log(f"✗ Groq processing issue: {result}")
+                        # Track the file with Groq issues
+                        groq_issues.append((video_file, result))
                         
                         # Write original transcription instead
                         try:
@@ -284,7 +293,28 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
     
     # Complete batch processing
     if self.is_batch_processing:
-        self.update_batch_status(f"Batch processing completed. Processed {self.processed_count} of {self.total_videos} files.")
+        completion_message = f"Batch processing completed. Processed {self.processed_count} of {self.total_videos} files."
+        
+        # Save Groq error report if there were any issues and Groq was enabled
+        if self.groq_enabled.get() and hasattr(self.groq_api, 'failed_processing') and self.groq_api.failed_processing:
+            report_file = self.groq_api.save_failed_processing_report(output_dir)
+            if report_file:
+                completion_message += f"\nGroq processing had issues with {len(self.groq_api.failed_processing)} files."
+                completion_message += f"\nError report saved to: {os.path.basename(report_file)}"
+                
+                # Show a more detailed message in the log
+                self.update_batch_log(f"Groq processing had issues with {len(self.groq_api.failed_processing)} files.")
+                self.update_batch_log(f"Error report saved to: {report_file}")
+                
+                # Show a popup with the report information after a delay
+                self.root.after(500, lambda: messagebox.showinfo(
+                    "Batch Processing Complete",
+                    f"Processed {self.processed_count} of {self.total_videos} files.\n\n"
+                    f"Note: Groq processing had issues with {len(self.groq_api.failed_processing)} files.\n"
+                    f"Error report saved to:\n{report_file}"
+                ))
+        
+        self.update_batch_status(completion_message)
     else:
         self.update_batch_status(f"Batch processing canceled. Processed {self.processed_count} of {self.total_videos} files.")
     

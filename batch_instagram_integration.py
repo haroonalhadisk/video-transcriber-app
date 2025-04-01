@@ -1,3 +1,5 @@
+# Updated batch_instagram_integration.py with proper function scoping
+
 import os
 import threading
 import tkinter as tk
@@ -7,6 +9,230 @@ def update_instagram_progress(gui_instance, value, status_text):
     """Update progress bar and status text for Instagram download"""
     gui_instance.root.after(0, lambda: gui_instance.instagram_progress.set(value))
     gui_instance.root.after(0, lambda: gui_instance.instagram_status.set(status_text))
+
+def transcribe_instagram_video(gui_instance, video_path, output_file):
+    """
+    Transcribe an Instagram video in the batch processing flow
+    with improved error handling for Groq processing
+    """
+    # Check if we need to switch behavior for batch mode
+    original_is_transcribing = gui_instance.is_transcribing
+    
+    # Start transcription in the same thread for batch processing
+    gui_instance.is_transcribing = True
+    gui_instance.video_path.set(video_path)
+    gui_instance.output_path.set(output_file)
+    
+    # Create audio file name
+    audio_file = os.path.splitext(video_path)[0] + ".wav"
+    
+    # Extract audio from video
+    if gui_instance.extract_audio_with_ffmpeg(video_path, audio_file):
+        # Transcribe the audio
+        transcription = gui_instance.transcribe_with_whisper(audio_file, 
+                                                        gui_instance.model_var.get(),
+                                                        gui_instance.language_var.get() if gui_instance.language_var.get() != "None" else None,
+                                                        gui_instance.word_timestamps_var.get())
+        
+        if transcription:
+            # Process with Groq if enabled
+            groq_result = None
+            if gui_instance.groq_enabled.get():
+                # Get the system prompt
+                system_prompt = ""
+                if hasattr(gui_instance, "system_prompt_text"):
+                    system_prompt = gui_instance.system_prompt_text.get(1.0, tk.END).strip()
+                
+                # Update the batch log
+                gui_instance.update_batch_log(f"Processing with Groq AI: {os.path.basename(video_path)}")
+                
+                # Process with Groq - pass the video file path for error tracking
+                success, result = gui_instance.groq_api.summarize_transcript(
+                    transcription['text'], system_prompt, video_path
+                )
+                
+                if success:
+                    groq_result = result
+                    gui_instance.update_batch_log(f"✓ Groq processing successful: {os.path.basename(video_path)}")
+                    
+                    # Write enhanced transcription to file
+                    try:
+                        with open(output_file, "w", encoding="utf-8") as file:
+                            file.write(f"Title: {groq_result['title']}\n\n")
+                            file.write(f"Summary: {groq_result['summary']}\n\n")
+                            file.write("--- Original Transcript ---\n\n")
+                            file.write(transcription['detailed'])
+                        
+                        gui_instance.update_batch_log(f"✓ Saved enhanced transcription: {os.path.basename(output_file)}")
+                    except Exception as e:
+                        gui_instance.update_batch_log(f"✗ Error saving enhanced transcription: {str(e)}")
+                else:
+                    # Log error but continue processing
+                    gui_instance.update_batch_log(f"✗ Groq processing issue: {result}")
+                    
+                    # Write original transcription instead
+                    try:
+                        with open(output_file, "w", encoding="utf-8") as file:
+                            file.write(transcription['detailed'])
+                        
+                        gui_instance.update_batch_log(f"✓ Saved original transcription: {os.path.basename(output_file)}")
+                    except Exception as e:
+                        gui_instance.update_batch_log(f"✗ Error saving transcription: {str(e)}")
+            else:
+                # Write transcription to file without Groq processing
+                try:
+                    with open(output_file, "w", encoding="utf-8") as file:
+                        file.write(transcription['detailed'])
+                    
+                    gui_instance.update_batch_log(f"✓ Saved transcription: {os.path.basename(output_file)}")
+                except Exception as e:
+                    gui_instance.update_batch_log(f"✗ Error saving transcription: {str(e)}")
+            
+            # Add to Notion if enabled
+            if gui_instance.notion_enabled.get():
+                if groq_result:
+                    success, message = gui_instance.notion_api.add_transcription_to_notion(
+                        video_path, transcription['detailed'], transcription.get('duration', None), groq_result
+                    )
+                else:
+                    success, message = gui_instance.notion_api.add_transcription_to_notion(
+                        video_path, transcription['detailed'], transcription.get('duration', None)
+                    )
+                    
+                if success:
+                    gui_instance.update_batch_log(f"✓ Added to Notion: {os.path.basename(video_path)}")
+                else:
+                    gui_instance.update_batch_log(f"✗ Notion error: {message}")
+        
+        # Clean up
+        if not gui_instance.keep_audio_var.get() and os.path.exists(audio_file):
+            try:
+                os.remove(audio_file)
+            except Exception as e:
+                gui_instance.update_batch_log(f"Warning: Could not remove temporary audio file: {str(e)}")
+    
+    # Reset transcription state
+    gui_instance.is_transcribing = False
+
+def process_next_instagram_url(gui_instance):
+    """
+    Process the next Instagram URL in the batch queue
+    """
+    if not gui_instance.is_batch_instagram_processing or gui_instance.current_instagram_index >= len(gui_instance.instagram_urls):
+        # Batch processing completed or canceled
+        completion_message = f"Batch processing completed. Processed {gui_instance.current_instagram_index} of {len(gui_instance.instagram_urls)} videos."
+        
+        # Check for Groq issues if applicable
+        if hasattr(gui_instance, 'groq_enabled') and gui_instance.groq_enabled.get() and \
+           hasattr(gui_instance.groq_api, 'failed_processing') and gui_instance.groq_api.failed_processing:
+            # Save error report
+            output_dir = gui_instance.instagram_output_dir.get()
+            report_file = gui_instance.groq_api.save_failed_processing_report(output_dir)
+            if report_file:
+                completion_message += f"\nGroq processing had issues with {len(gui_instance.groq_api.failed_processing)} files."
+                gui_instance.root.after(0, lambda: gui_instance.update_batch_log(
+                    f"Groq processing had issues with {len(gui_instance.groq_api.failed_processing)} files."
+                ))
+                gui_instance.root.after(0, lambda: gui_instance.update_batch_log(
+                    f"Error report saved to: {report_file}"
+                ))
+                
+                # Show a popup with report information after a delay
+                gui_instance.root.after(500, lambda: messagebox.showinfo(
+                    "Batch Processing Complete",
+                    f"Processed {gui_instance.current_instagram_index} of {len(gui_instance.instagram_urls)} videos.\n\n"
+                    f"Note: Groq processing had issues with {len(gui_instance.groq_api.failed_processing)} files.\n"
+                    f"Error report saved to:\n{report_file}"
+                ))
+        
+        gui_instance.root.after(0, lambda: update_instagram_progress(
+            gui_instance, 
+            100, 
+            completion_message
+        ))
+        gui_instance.is_batch_instagram_processing = False
+        return
+    
+    # Get current URL and increment index
+    current_url = gui_instance.instagram_urls[gui_instance.current_instagram_index]
+    output_dir = gui_instance.instagram_output_dir.get()
+    
+    # Update status
+    gui_instance.root.after(0, lambda: update_instagram_progress(
+        gui_instance, 
+        (gui_instance.current_instagram_index / len(gui_instance.instagram_urls)) * 100,
+        f"Processing ({gui_instance.current_instagram_index + 1}/{len(gui_instance.instagram_urls)}): {current_url}"
+    ))
+    
+    try:
+        # Call the download method
+        success, result, description = gui_instance.instaloader_api.download_instagram_post(
+            current_url, 
+            output_dir,
+            lambda value, status: update_instagram_batch_progress(gui_instance, value, status, current_url)
+        )
+        
+        if success:
+            video_path = result
+            
+            # Store the original URL and description with the video path for Notion integration
+            if hasattr(gui_instance, 'notion_api'):
+                gui_instance.notion_api.store_video_metadata(video_path, current_url, description)
+            
+            # Log success
+            log_message = f"✓ Downloaded: {os.path.basename(video_path)}"
+            gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
+            
+            # Set up transcription paths
+            output_file = os.path.splitext(video_path)[0] + "_transcript.txt"
+            
+            # Set video and output paths for transcription
+            gui_instance.video_path.set(video_path)
+            gui_instance.output_path.set(output_file)
+            
+            # Wait until previous transcription is complete
+            while hasattr(gui_instance, 'is_transcribing') and gui_instance.is_transcribing:
+                import time
+                time.sleep(0.5)
+            
+            # Start transcription - using the function defined in this module
+            transcribe_instagram_video(gui_instance, video_path, output_file)
+            
+            # Wait until transcription is complete
+            while hasattr(gui_instance, 'is_transcribing') and gui_instance.is_transcribing:
+                import time
+                time.sleep(0.5)
+            
+            # Log transcription completion
+            log_message = f"✓ Transcribed: {os.path.basename(output_file)}"
+            gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
+            
+        else:
+            error_message = result
+            # Log error
+            log_message = f"✗ Error downloading {current_url}: {error_message}"
+            gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
+    
+    except Exception as e:
+        # Log unexpected error
+        log_message = f"✗ Unexpected error processing {current_url}: {str(e)}"
+        gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
+    
+    # Increment index and process next URL
+    gui_instance.current_instagram_index += 1
+    process_next_instagram_url(gui_instance)
+
+def update_instagram_batch_progress(gui_instance, value, status, current_url):
+    """
+    Update progress bar and status text for batch Instagram download with current URL context
+    """
+    # Calculate the overall progress
+    if gui_instance.is_batch_instagram_processing:
+        overall_progress = ((gui_instance.current_instagram_index + (value / 100)) / len(gui_instance.instagram_urls)) * 100
+        status_text = f"({gui_instance.current_instagram_index + 1}/{len(gui_instance.instagram_urls)}) {status}"
+        
+        gui_instance.root.after(0, lambda: gui_instance.instagram_progress.set(overall_progress))
+        gui_instance.root.after(0, lambda: gui_instance.instagram_status.set(status_text))
 
 def add_batch_instagram_features(gui_instance):
     """
@@ -136,117 +362,6 @@ def start_batch_instagram_processing(gui_instance, urls):
         daemon=True
     )
     gui_instance.instagram_batch_thread.start()
-
-def process_next_instagram_url(gui_instance):
-    """
-    Process the next Instagram URL in the batch queue
-    """
-    if not gui_instance.is_batch_instagram_processing or gui_instance.current_instagram_index >= len(gui_instance.instagram_urls):
-        # Batch processing completed or canceled
-        gui_instance.root.after(0, lambda: update_instagram_progress(
-            gui_instance, 
-            100, 
-            f"Batch processing completed. Processed {gui_instance.current_instagram_index} of {len(gui_instance.instagram_urls)} videos."
-        ))
-        gui_instance.is_batch_instagram_processing = False
-        return
-    
-    # Get current URL and increment index
-    current_url = gui_instance.instagram_urls[gui_instance.current_instagram_index]
-    output_dir = gui_instance.instagram_output_dir.get()
-    
-    # Update status
-    gui_instance.root.after(0, lambda: update_instagram_progress(
-        gui_instance, 
-        (gui_instance.current_instagram_index / len(gui_instance.instagram_urls)) * 100,
-        f"Processing ({gui_instance.current_instagram_index + 1}/{len(gui_instance.instagram_urls)}): {current_url}"
-    ))
-    
-    try:
-        # Call the download method
-        success, result, description = gui_instance.instaloader_api.download_instagram_post(
-            current_url, 
-            output_dir,
-            lambda value, status: update_instagram_batch_progress(gui_instance, value, status, current_url)
-        )
-        
-        if success:
-            video_path = result
-            
-            # Store the original URL and description with the video path for Notion integration
-            if hasattr(gui_instance, 'notion_api'):
-                gui_instance.notion_api.store_video_metadata(video_path, current_url, description)
-            
-            # Log success
-            log_message = f"✓ Downloaded: {os.path.basename(video_path)}"
-            gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
-            
-            # Set up transcription paths
-            output_file = os.path.splitext(video_path)[0] + "_transcript.txt"
-            
-            # Set video and output paths for transcription
-            gui_instance.video_path.set(video_path)
-            gui_instance.output_path.set(output_file)
-            
-            # Wait until previous transcription is complete
-            while hasattr(gui_instance, 'is_transcribing') and gui_instance.is_transcribing:
-                import time
-                time.sleep(0.5)
-            
-            # Start transcription
-            transcribe_instagram_video(gui_instance, video_path, output_file)
-            
-            # Wait until transcription is complete
-            while hasattr(gui_instance, 'is_transcribing') and gui_instance.is_transcribing:
-                import time
-                time.sleep(0.5)
-            
-            # Log transcription completion
-            log_message = f"✓ Transcribed: {os.path.basename(output_file)}"
-            gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
-            
-        else:
-            error_message = result
-            # Log error
-            log_message = f"✗ Error downloading {current_url}: {error_message}"
-            gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
-    
-    except Exception as e:
-        # Log unexpected error
-        log_message = f"✗ Unexpected error processing {current_url}: {str(e)}"
-        gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
-    
-    # Increment index and process next URL
-    gui_instance.current_instagram_index += 1
-    process_next_instagram_url(gui_instance)
-
-def update_instagram_batch_progress(gui_instance, value, status, current_url):
-    """
-    Update progress bar and status text for batch Instagram download with current URL context
-    """
-    # Calculate the overall progress
-    if gui_instance.is_batch_instagram_processing:
-        overall_progress = ((gui_instance.current_instagram_index + (value / 100)) / len(gui_instance.instagram_urls)) * 100
-        status_text = f"({gui_instance.current_instagram_index + 1}/{len(gui_instance.instagram_urls)}) {status}"
-        
-        gui_instance.root.after(0, lambda: gui_instance.instagram_progress.set(overall_progress))
-        gui_instance.root.after(0, lambda: gui_instance.instagram_status.set(status_text))
-
-def transcribe_instagram_video(gui_instance, video_path, output_file):
-    """
-    Transcribe an Instagram video in the batch processing flow
-    """
-    # Check if we need to switch behavior for batch mode
-    original_is_transcribing = gui_instance.is_transcribing
-    
-    # Start transcription in the same thread for batch processing
-    gui_instance.is_transcribing = True
-    gui_instance.video_path.set(video_path)
-    gui_instance.output_path.set(output_file)
-    
-    # Use the existing transcribe_video_thread method but call it directly
-    # instead of starting a new thread
-    gui_instance.transcribe_video_thread()
 
 def cancel_batch_instagram_processing(gui_instance):
     """
