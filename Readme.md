@@ -16,7 +16,11 @@ A GUI application that accurately transcribes speech from video files using Open
 - **Transcription Preview**: See a preview of the transcription in the application
 - **Local Processing**: All transcription happens locally on your machine with no data sent to external servers (except for optional AI processing)
 - **Batch Processing**: Process multiple video files in a directory with a single click
-- **Notion Integration**: Automatically send transcriptions to your Notion database
+- **Enhanced Notion Integration**: Automatically send transcriptions to your Notion database with:
+  - Video links for Instagram content
+  - Video descriptions and extracted hashtags
+  - Properly formatted content with clear section headings
+  - Multi-select tags from Instagram hashtags
 - **Instagram Video Download**: Download videos directly from Instagram posts and reels for transcription
 - **Batch Instagram Processing**: Process multiple Instagram URLs from a text file automatically
 - **Instagram Saved Posts**: Access and download videos from your Instagram saved collection for transcription
@@ -141,7 +145,15 @@ pip install instaloader browser_cookie3
    - Enter your Notion Database ID
    - Click "Test Connection" to verify your settings
 4. **Enable Integration**: Check "Send to Notion after transcription" in either single file or batch mode
-5. **View in Notion**: Transcriptions will be added as new pages in your Notion database
+5. **Prepare Notion Database**: Make sure your database has these properties:
+   - **Video URL** (type: URL)
+   - **Description** (type: Text)
+   - **Hashtags** (type: Multi-select)
+6. **Content Structure in Notion**:
+   - **Summary** (if AI processing is enabled)
+   - **Original Transcription** (clearly labeled with heading)
+   - **Video Description** (from Instagram, if available)
+   - **Video Link** (clickable link to source)
 
 #### AI Processing with Groq
 1. Click on the "AI Processing" tab
@@ -169,7 +181,10 @@ pip install instaloader browser_cookie3
 7. **Threading**: Runs transcription in a background thread to keep the UI responsive
 8. **Progress Updates**: Regularly updates the UI with the current status
 9. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
-10. **Notion API**: Connects to Notion's API to add transcriptions as database entries
+10. **Notion API**: Connects to Notion's API to add transcriptions as database entries with:
+    - Video URLs, descriptions, and hashtags
+    - Properly formatted transcription content with section headings
+    - Multi-select properties for categorization via hashtags
 
 ### Components
 
@@ -209,31 +224,20 @@ pip install instaloader browser_cookie3
 - Make sure Instaloader is properly installed
 - For private posts, you need to login with Instaloader separately
 
+**Notion Integration Issues**
+- Verify your database has all required properties: "Video URL" (URL type), "Description" (Text type), and "Hashtags" (Multi-select type)
+- Check your Notion API token and database ID
+- Ensure your integration has the proper permissions to modify your database
+
 **Slow Transcription**
 - Try a smaller model size (tiny or base)
 - Enable GPU acceleration if you have a compatible NVIDIA GPU
 - Split long videos into smaller segments before transcription
 
-**Instagram Download Errors**
-- Make sure the Instagram post contains a video (not just images)
-- Verify that the post is public and accessible
-- Check that Instaloader is properly installed
-- For private posts, you need to login with Instaloader separately using the command line
-
 **Out of Memory Errors**
 - Try a smaller model size
 - Close other memory-intensive applications
 - Increase your system's swap space/virtual memory
-
-**Batch Processing Errors**
-- Make sure all videos in the directory are valid and not corrupted
-- Ensure sufficient disk space for audio extraction and transcription files
-- Check that your Notion API token and database ID are correct if using integration
-
-**Groq API Errors**
-- Verify that your API key is correct
-- Check if your system prompt follows Groq's guidelines
-- Ensure you have an active internet connection
 
 ## License
 
@@ -247,12 +251,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Groq API](https://console.groq.com/) for AI-powered text processing
 - [Instaloader](https://instaloader.github.io/) for Instagram video downloading
 - Python Tkinter for the GUI framework
-
-## Future Improvements
-
-- Export options (SRT, VTT, JSON)
-- Audio/video playback integration
-- Speaker diarization (identifying different speakers)
-- Transcript editing capabilities
-- Support for fine-tuned custom models
-- Additional third-party integrations (Google Docs, Microsoft Word, etc.)

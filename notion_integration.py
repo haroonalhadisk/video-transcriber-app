@@ -181,23 +181,6 @@ class NotionIntegration:
                     ]
                 }
             })
-            
-        # Add description if available
-        if video_description:
-            page_data["children"].append({
-                "object": "block",
-                "type": "paragraph",
-                "paragraph": {
-                    "rich_text": [
-                        {
-                            "type": "text",
-                            "text": {
-                                "content": video_description
-                            }
-                        }
-                    ]
-                }
-            })
         
         # Add Groq summary if available
         if groq_result and "summary" in groq_result:
@@ -261,6 +244,46 @@ class NotionIntegration:
                             "type": "text",
                             "text": {
                                 "content": chunk
+                            }
+                        }
+                    ]
+                }
+            })
+        
+        # Add description after transcription if available
+        if video_description:
+            # Add a divider before the description
+            page_data["children"].append({
+                "object": "block",
+                "type": "divider",
+                "divider": {}
+            })
+            
+            # Add heading for Video Description
+            page_data["children"].append({
+                "object": "block",
+                "type": "heading_3",
+                "heading_3": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": "Video Description"
+                            }
+                        }
+                    ]
+                }
+            })
+            
+            page_data["children"].append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": video_description
                             }
                         }
                     ]
