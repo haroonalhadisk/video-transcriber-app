@@ -164,7 +164,7 @@ def process_next_instagram_url(gui_instance):
     
     try:
         # Call the download method
-        success, result = gui_instance.instaloader_api.download_instagram_post(
+        success, result, description = gui_instance.instaloader_api.download_instagram_post(
             current_url, 
             output_dir,
             lambda value, status: update_instagram_batch_progress(gui_instance, value, status, current_url)
@@ -173,9 +173,9 @@ def process_next_instagram_url(gui_instance):
         if success:
             video_path = result
             
-            # Store the original URL with the video path for Notion integration
+            # Store the original URL and description with the video path for Notion integration
             if hasattr(gui_instance, 'notion_api'):
-                gui_instance.notion_api.store_video_url(video_path, current_url)
+                gui_instance.notion_api.store_video_metadata(video_path, current_url, description)
             
             # Log success
             log_message = f"✓ Downloaded: {os.path.basename(video_path)}"

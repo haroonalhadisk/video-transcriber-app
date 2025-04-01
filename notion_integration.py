@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+import re
 from datetime import datetime
 
 class NotionIntegration:
@@ -12,8 +13,10 @@ class NotionIntegration:
             "Content-Type": "application/json",
             "Notion-Version": "2022-06-28"  # Use the latest Notion API version
         }
-        # Store for original URLs
+        # Store for original URLs and metadata
         self.video_url_map = {}
+        self.video_description_map = {}
+        self.video_hashtags_map = {}
         
     def set_token(self, token):
         """Set or update the Notion API token"""
@@ -42,9 +45,28 @@ class NotionIntegration:
         except Exception as e:
             return False, f"Connection error: {str(e)}"
     
+    def store_video_metadata(self, video_path, original_url, description=None):
+        """
+        Store the original URL and metadata for a downloaded video
+        
+        Parameters:
+            video_path (str): Path to the video file
+            original_url (str): Original URL of the video
+            description (str, optional): Description of the video
+        """
+        self.video_url_map[video_path] = original_url
+        
+        if description:
+            self.video_description_map[video_path] = description
+            
+            # Extract hashtags from description
+            hashtags = re.findall(r'#(\w+)', description)
+            if hashtags:
+                self.video_hashtags_map[video_path] = hashtags
+    
     def store_video_url(self, video_path, original_url):
         """
-        Store the original URL for a downloaded video
+        Store the original URL for a downloaded video (backward compatibility)
         
         Parameters:
             video_path (str): Path to the video file
@@ -80,8 +102,10 @@ class NotionIntegration:
         if groq_result and "title" in groq_result:
             page_title = groq_result["title"]
         
-        # Get original URL if available
+        # Get original URL and metadata if available
         video_url = self.video_url_map.get(video_path)
+        video_description = self.video_description_map.get(video_path)
+        video_hashtags = self.video_hashtags_map.get(video_path, [])
         
         # Create the page properties
         page_data = {
@@ -120,6 +144,24 @@ class NotionIntegration:
             page_data["properties"]["Video URL"] = {
                 "url": video_url
             }
+            
+        # Add Description property if available
+        if video_description:
+            page_data["properties"]["Description"] = {
+                "rich_text": [
+                    {
+                        "text": {
+                            "content": video_description[:2000]  # Notion has a limit of 2000 chars for rich_text
+                        }
+                    }
+                ]
+            }
+            
+        # Add Hashtags property if available
+        if video_hashtags:
+            page_data["properties"]["Hashtags"] = {
+                "multi_select": [{"name": tag[:100]} for tag in video_hashtags[:100]]  # Notion has limits
+            }
         
         # Add duration information if provided
         if duration:
@@ -134,6 +176,23 @@ class NotionIntegration:
                             "type": "text",
                             "text": {
                                 "content": f"Duration: {duration_mins}m {duration_secs}s"
+                            }
+                        }
+                    ]
+                }
+            })
+            
+        # Add description if available
+        if video_description:
+            page_data["children"].append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": video_description
                             }
                         }
                     ]
@@ -167,6 +226,22 @@ class NotionIntegration:
                 "type": "divider",
                 "divider": {}
             })
+        
+        # Add heading for Original Transcription
+        page_data["children"].append({
+            "object": "block",
+            "type": "heading_3",
+            "heading_3": {
+                "rich_text": [
+                    {
+                        "type": "text",
+                        "text": {
+                            "content": "Original Transcription"
+                        }
+                    }
+                ]
+            }
+        })
         
         # Notion API has a limit for block content, so we need to split long transcriptions
         max_block_size = 2000  # Notion has a character limit per block

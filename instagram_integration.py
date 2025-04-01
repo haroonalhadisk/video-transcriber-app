@@ -67,7 +67,7 @@ class InstaloaderIntegration:
             callback (function, optional): Callback function for progress updates
             
         Returns:
-            tuple: (success, filepath or error_message)
+            tuple: (success, filepath or error_message, description)
         """
         # First, ensure Instaloader is installed
         try:
@@ -75,16 +75,16 @@ class InstaloaderIntegration:
         except ImportError:
             success, message = self.install_instaloader(callback)
             if not success:
-                return False, message
+                return False, message, None
             try:
                 import instaloader
             except ImportError:
-                return False, "Failed to import Instaloader after installation. Please restart the application."
+                return False, "Failed to import Instaloader after installation. Please restart the application.", None
         
         # Extract post shortcode from URL
         shortcode = self.extract_post_shortcode(url)
         if not shortcode:
-            return False, "Invalid Instagram URL. Please provide a valid post URL (e.g., https://www.instagram.com/p/ABC123/)."
+            return False, "Invalid Instagram URL. Please provide a valid post URL (e.g., https://www.instagram.com/p/ABC123/).", None
         
         if callback:
             callback(20, f"Downloading post with shortcode: {shortcode}")
@@ -101,7 +101,7 @@ class InstaloaderIntegration:
                 download_video_thumbnails=False,
                 download_geotags=False,
                 download_comments=False,
-                save_metadata=False,
+                save_metadata=True,  # Save metadata to get the description
                 compress_json=False
             )
             
@@ -110,6 +110,9 @@ class InstaloaderIntegration:
             
             # Get post by shortcode
             post = instaloader.Post.from_shortcode(L.context, shortcode)
+            
+            # Get post description
+            description = post.caption if post.caption else ""
             
             if callback:
                 callback(50, "Downloading media...")
@@ -133,14 +136,14 @@ class InstaloaderIntegration:
             if video_file:
                 if callback:
                     callback(100, f"Download completed: {os.path.basename(video_file)}")
-                return True, video_file
+                return True, video_file, description
             else:
-                return False, "No video was found in the post. The post might contain only images."
+                return False, "No video was found in the post. The post might contain only images.", description
             
         except instaloader.exceptions.InstaloaderException as e:
-            return False, f"Instaloader error: {str(e)}"
+            return False, f"Instaloader error: {str(e)}", None
         except Exception as e:
-            return False, f"Error downloading Instagram post: {str(e)}"
+            return False, f"Error downloading Instagram post: {str(e)}", None
 
 def update_instagram_progress(gui_instance, value, status_text):
     """Update progress bar and status text for Instagram download"""
@@ -357,7 +360,7 @@ def download_instagram_thread(gui_instance, url, output_dir, transcribe_after=Fa
     """Thread function to download Instagram video"""
     try:
         # Call the download method with a callback for progress updates
-        success, result = gui_instance.instaloader_api.download_instagram_post(
+        success, result, description = gui_instance.instaloader_api.download_instagram_post(
             url, 
             output_dir,
             lambda value, status: update_instagram_progress(gui_instance, value, status)
@@ -367,9 +370,9 @@ def download_instagram_thread(gui_instance, url, output_dir, transcribe_after=Fa
             video_path = result
             update_instagram_progress(gui_instance, 100, f"Download complete: {os.path.basename(video_path)}")
             
-            # Store the original URL with the video path for Notion integration
+            # Store the original URL and description with the video path for Notion integration
             if hasattr(gui_instance, 'notion_api'):
-                gui_instance.notion_api.store_video_url(video_path, url)
+                gui_instance.notion_api.store_video_metadata(video_path, url, description)
             
             # Show success message
             gui_instance.root.after(0, lambda: messagebox.showinfo(
