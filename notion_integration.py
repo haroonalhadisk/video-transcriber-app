@@ -68,6 +68,20 @@ class NotionIntegration:
         if groq_result and "title" in groq_result:
             page_title = groq_result["title"]
         
+        # Determine if this is an Instagram video by checking the video path or name
+        is_instagram = False
+        instagram_url = None
+        
+        # Check common Instagram patterns in the file path or name
+        if "instagram" in video_path.lower() or "_UTC_" in video_path:
+            is_instagram = True
+            # Try to extract Instagram shortcode from file name
+            # Common pattern is "date_UTC_shortcode.mp4"
+            parts = video_name.split("_UTC_")
+            if len(parts) > 1 and parts[1]:
+                shortcode = parts[1]
+                instagram_url = f"https://www.instagram.com/p/{shortcode}/"
+        
         # Create the page properties
         page_data = {
             "parent": {"database_id": self.database_id},
@@ -97,37 +111,14 @@ class NotionIntegration:
                     }
                 }
             },
-            "children": [
-                {
-                    "object": "block",
-                    "type": "heading_2",
-                    "heading_2": {
-                        "rich_text": [
-                            {
-                                "type": "text",
-                                "text": {
-                                    "content": f"Transcription of {video_filename}"
-                                }
-                            }
-                        ]
-                    }
-                },
-                {
-                    "object": "block",
-                    "type": "paragraph",
-                    "paragraph": {
-                        "rich_text": [
-                            {
-                                "type": "text",
-                                "text": {
-                                    "content": f"Generated on: {current_date}"
-                                }
-                            }
-                        ]
-                    }
-                }
-            ]
+            "children": []
         }
+        
+        # Add Video URL property if it's an Instagram video
+        if is_instagram and instagram_url:
+            page_data["properties"]["Video URL"] = {
+                "url": instagram_url
+            }
         
         # Add duration information if provided
         if duration:
@@ -150,29 +141,6 @@ class NotionIntegration:
         
         # Add Groq summary if available
         if groq_result and "summary" in groq_result:
-            # Add a divider before the summary
-            page_data["children"].append({
-                "object": "block",
-                "type": "divider",
-                "divider": {}
-            })
-            
-            # Add heading for the summary
-            page_data["children"].append({
-                "object": "block",
-                "type": "heading_3",
-                "heading_3": {
-                    "rich_text": [
-                        {
-                            "type": "text",
-                            "text": {
-                                "content": "Summary:"
-                            }
-                        }
-                    ]
-                }
-            })
-            
             # Add the summary text - split into paragraphs for better readability
             summary_paragraphs = groq_result["summary"].split('\n\n')
             for paragraph in summary_paragraphs:
@@ -191,29 +159,13 @@ class NotionIntegration:
                             ]
                         }
                     })
-        
-        # Add a divider before the transcription
-        page_data["children"].append({
-            "object": "block",
-            "type": "divider",
-            "divider": {}
-        })
-        
-        # Add heading for the transcription
-        page_data["children"].append({
-            "object": "block",
-            "type": "heading_3",
-            "heading_3": {
-                "rich_text": [
-                    {
-                        "type": "text",
-                        "text": {
-                            "content": "Original Transcription:"
-                        }
-                    }
-                ]
-            }
-        })
+            
+            # Add a divider after the summary
+            page_data["children"].append({
+                "object": "block",
+                "type": "divider",
+                "divider": {}
+            })
         
         # Notion API has a limit for block content, so we need to split long transcriptions
         max_block_size = 2000  # Notion has a character limit per block
@@ -233,6 +185,37 @@ class NotionIntegration:
                             "type": "text",
                             "text": {
                                 "content": chunk
+                            }
+                        }
+                    ]
+                }
+            })
+        
+        # Add Instagram link at the bottom if available
+        if is_instagram and instagram_url:
+            page_data["children"].append({
+                "object": "block",
+                "type": "divider",
+                "divider": {}
+            })
+            page_data["children"].append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": "Instagram Video Link: "
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": instagram_url,
+                                "link": {
+                                    "url": instagram_url
+                                }
                             }
                         }
                     ]
