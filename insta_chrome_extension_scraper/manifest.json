@@ -1,0 +1,12 @@
+{
+    "manifest_version": 3,
+    "name": "Instagram Video Link Scraper",
+    "version": "1.2",
+    "description": "Extract video post links from Instagram Saved Collections.",
+    "permissions": ["scripting", "activeTab"],
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": "icon.png"
+    }
+  }
+  
