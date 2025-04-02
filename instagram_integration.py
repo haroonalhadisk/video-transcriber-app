@@ -197,11 +197,16 @@ def integrate_instaloader(gui_instance):
         ttk.Entry(url_frame, textvariable=gui_instance.instagram_output_dir, width=50).grid(row=1, column=1, padx=5, pady=5, sticky=tk.W+tk.E)
         ttk.Button(url_frame, text="Browse", command=lambda: browse_output_dir(gui_instance)).grid(row=1, column=2, padx=5, pady=5)
         
+        # Add auto-delete option checkbox
+        gui_instance.instagram_auto_delete = tk.BooleanVar(value=False)
+        ttk.Checkbutton(url_frame, text="Auto-delete videos after transcription", 
+                      variable=gui_instance.instagram_auto_delete).grid(row=2, column=1, sticky=tk.W, pady=5)
+        
         url_frame.columnconfigure(1, weight=1)
         
         # Instaloader status
         status_frame = ttk.Frame(url_frame)
-        status_frame.grid(row=2, column=0, columnspan=3, sticky=tk.W, pady=5)
+        status_frame.grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=5)
         
         ttk.Label(status_frame, text="Instaloader Status:").pack(side=tk.LEFT, padx=5)
         
@@ -254,9 +259,10 @@ How to use Instagram Video Downloader (Instaloader):
    (e.g., https://www.instagram.com/p/ABC123/ or https://www.instagram.com/reel/XYZ789/)
 2. Paste the URL in the field above
 3. Choose where to save the downloaded video
-4. Click "Download & Transcribe" to download the video and proceed with transcription
-5. Or click "Download Only" if you just want to save the video without transcribing
-6. For multiple videos, use "Load URLs from File" to process a text file with one Instagram URL per line
+4. Optionally, enable auto-delete to automatically remove videos after transcription
+5. Click "Download & Transcribe" to download the video and proceed with transcription
+6. Or click "Download Only" if you just want to save the video without transcribing
+7. For multiple videos, use "Load URLs from File" to process a text file with one Instagram URL per line
 
 Note: This feature works with public Instagram posts only by default. 
 For private posts, you would need to login with Instaloader separately.
@@ -389,8 +395,41 @@ def download_instagram_thread(gui_instance, url, output_dir, transcribe_after=Fa
                 output_file = os.path.splitext(video_path)[0] + "_transcript.txt"
                 gui_instance.output_path.set(output_file)
                 
+                # Create a flag to track transcription completion for auto-delete
+                if gui_instance.instagram_auto_delete.get():
+                    # Track this video for auto-deletion
+                    def on_transcription_complete():
+                        # This function will be called after transcription is complete
+                        try:
+                            if os.path.exists(video_path) and not gui_instance.is_transcribing:
+                                os.remove(video_path)
+                                update_instagram_progress(
+                                    gui_instance, 
+                                    100, 
+                                    f"Video deleted after transcription: {os.path.basename(video_path)}"
+                                )
+                        except Exception as e:
+                            update_instagram_progress(
+                                gui_instance, 
+                                100, 
+                                f"Error deleting video after transcription: {str(e)}"
+                            )
+                    
+                    # Define a checker function for periodic checking
+                    def check_transcription_status():
+                        if not gui_instance.is_transcribing:
+                            # Transcription has completed, call the auto-delete function
+                            on_transcription_complete()
+                        else:
+                            # Transcription still in progress, check again after 1 second
+                            gui_instance.root.after(1000, check_transcription_status)
+                
                 # Start transcription after a short delay to ensure UI updates
                 gui_instance.root.after(500, gui_instance.start_transcription)
+                
+                # If auto-delete is enabled, start checking transcription status
+                if gui_instance.instagram_auto_delete.get():
+                    gui_instance.root.after(1000, check_transcription_status)
         else:
             error_message = result
             update_instagram_progress(gui_instance, 0, f"Download failed: {error_message}")

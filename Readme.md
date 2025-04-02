@@ -18,6 +18,7 @@ A GUI application that accurately transcribes speech from video files using Open
 - **Local Processing**: All transcription happens locally on your machine with no data sent to external servers (except for optional AI processing)
 - **Batch Processing**: Process multiple video files in a directory with a single click
 - **Error Reporting**: Comprehensive error logs for batch processing with Groq
+- **Auto-Delete Videos**: Automatically remove Instagram videos after transcription to save disk space
 - **Enhanced Notion Integration**: Automatically send transcriptions to your Notion database with:
   - Video links for Instagram content
   - Video descriptions and extracted hashtags
@@ -111,9 +112,10 @@ pip install instaloader browser_cookie3
 2. **Enter Instagram URL**: Paste the URL of an Instagram post or reel containing a video
    - Example formats: `https://www.instagram.com/p/ABC123/` or `https://www.instagram.com/reel/XYZ789/`
 3. **Choose Output Directory**: Specify where to save the downloaded video
-4. **Download & Transcribe**: Click to download the video and automatically proceed to transcription
-5. **Download Only**: Click to download the video without transcribing
-6. **First-time Setup**: If Instaloader is not already installed, the app will offer to install it for you
+4. **Auto-Delete Option**: Enable "Auto-delete videos after transcription" to save disk space
+5. **Download & Transcribe**: Click to download the video and automatically proceed to transcription
+6. **Download Only**: Click to download the video without transcribing
+7. **First-time Setup**: If Instaloader is not already installed, the app will offer to install it for you
 
 #### Batch Instagram Processing
 1. Click on the "Instagram Download" tab
@@ -125,10 +127,11 @@ pip install instaloader browser_cookie3
    ```
 3. **Load URLs from File**: Click the "Load URLs from File" button and select your text file
 4. **Choose Output Directory**: Specify where to save the downloaded videos
-5. **Confirm Processing**: Review the detected URLs and confirm to start batch processing
-6. **Monitor Progress**: Track progress as each video is downloaded and transcribed
-7. **Review Log**: Check the processing log for detailed information about each video
-8. **Error Handling**: The system will continue processing even if some videos have issues with Groq
+5. **Auto-Delete Option**: Enable to automatically remove videos after processing
+6. **Confirm Processing**: Review the detected URLs and confirm to start batch processing
+7. **Monitor Progress**: Track progress as each video is downloaded and transcribed
+8. **Review Log**: Check the processing log for detailed information about each video
+9. **Error Handling**: The system will continue processing even if some videos have issues with Groq
 
 #### Instagram Saved Posts
 1. Click on the "Instagram Saved" tab
@@ -138,6 +141,7 @@ pip install instaloader browser_cookie3
    - Choose to download all saved posts or specify a count
    - Select content types (pictures, videos, or both)
    - Enable auto-transcription for downloaded videos
+   - Enable auto-delete to remove videos after transcription
 5. **Download Saved Posts**: Click to begin the download process
 6. **Auto-Transcription**: Downloaded videos can be automatically sent to batch processing
 
@@ -177,6 +181,30 @@ pip install instaloader browser_cookie3
    - Processing continues even when Groq encounters issues
    - A detailed error report is generated at the end of batch processing
 
+## Managing Disk Space with Auto-Delete
+
+The auto-delete feature helps you manage disk space when working with Instagram videos:
+
+1. **How It Works**:
+   - When enabled, videos are automatically deleted after being successfully transcribed
+   - Deletion only occurs after all processing (transcription, Groq processing, Notion upload) is complete
+   - The transcription file is kept; only the source video is deleted
+
+2. **Where to Enable**:
+   - In the "Instagram Download" tab for single videos
+   - In the "Instagram Saved" tab for saved posts collection
+   - Setting persists across sessions until changed
+
+3. **Batch Processing**:
+   - When auto-delete is enabled during batch Instagram URL processing, each video is deleted once its processing is complete
+   - Status updates in the log show which videos are being deleted
+   - Any errors during deletion are logged but don't stop the overall process
+
+4. **Recommendations**:
+   - Enable auto-delete when transcription is the primary goal and keeping source videos isn't necessary
+   - Disable auto-delete when you want to keep videos for later reference or editing
+   - Double-check that transcription files are saved properly before enabling auto-delete for important content
+
 ## Technical Details
 
 ### How It Works
@@ -188,10 +216,11 @@ pip install instaloader browser_cookie3
 5. **Instagram Download**: (Optional) Uses Instaloader to download videos from Instagram posts and reels
 6. **Instagram Batch Processing**: (Optional) Processes multiple Instagram URLs from a text file in sequence
 7. **Instagram Saved Posts**: (Optional) Downloads videos from your Instagram saved collection
-8. **Threading**: Runs transcription in a background thread to keep the UI responsive
-9. **Progress Updates**: Regularly updates the UI with the current status
-10. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
-11. **Notion API**: Connects to Notion's API to add transcriptions as database entries with:
+8. **Auto-Delete Feature**: (Optional) Automatically removes downloaded videos after processing to save disk space
+9. **Threading**: Runs transcription in a background thread to keep the UI responsive
+10. **Progress Updates**: Regularly updates the UI with the current status
+11. **Batch Processing**: Processes multiple files sequentially using a dedicated thread
+12. **Notion API**: Connects to Notion's API to add transcriptions as database entries with:
     - Video URLs, descriptions, and hashtags
     - Properly formatted transcription content with section headings
     - Multi-select properties for categorization via hashtags
@@ -206,6 +235,7 @@ pip install instaloader browser_cookie3
 - **Groq Integration**: Uses Groq's API for AI-powered summarization and title generation
 - **Error Handling**: Implements retry mechanism and comprehensive error reporting for Groq processing
 - **Instagram Integration**: Uses Instaloader to download videos from Instagram posts, reels, and saved collections
+- **Disk Management**: Implements auto-delete functionality for cleaning up downloaded videos after processing
 
 ## Troubleshooting
 
@@ -240,6 +270,12 @@ pip install instaloader browser_cookie3
 - Check that the URLs are valid Instagram post or reel URLs
 - Make sure Instaloader is properly installed
 - For private posts, you need to login with Instaloader separately
+
+**Auto-Delete Feature Issues**
+- If videos aren't being deleted, check if the auto-delete option is properly checked
+- The auto-delete process runs after all processing is complete, so be patient with large files
+- If a video fails to delete, you'll see an error message in the log, but processing will continue
+- Videos are only deleted after successful transcription, ensuring you don't lose content
 
 **Notion Integration Issues**
 - Verify your database has all required properties: "Video URL" (URL type), "Description" (Text type), and "Hashtags" (Multi-select type)

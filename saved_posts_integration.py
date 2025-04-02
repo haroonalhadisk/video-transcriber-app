@@ -84,6 +84,10 @@ def add_saved_posts_tab(gui_instance):
     gui_instance.download_videos = tk.BooleanVar(value=True)
     gui_instance.auto_transcribe = tk.BooleanVar(value=True)
     
+    # Add auto-delete option to the saved posts tab
+    if not hasattr(gui_instance, 'instagram_auto_delete'):
+        gui_instance.instagram_auto_delete = tk.BooleanVar(value=False)
+    
     # Number of posts to download
     ttk.Label(options_frame, text="Number of posts to download:").grid(row=0, column=0, sticky=tk.W, pady=5)
     count_frame = ttk.Frame(options_frame)
@@ -99,6 +103,10 @@ def add_saved_posts_tab(gui_instance):
     ttk.Checkbutton(options_frame, text="Download pictures", variable=gui_instance.download_pictures).grid(row=1, column=0, sticky=tk.W, pady=5)
     ttk.Checkbutton(options_frame, text="Download videos", variable=gui_instance.download_videos).grid(row=1, column=1, sticky=tk.W, pady=5)
     ttk.Checkbutton(options_frame, text="Auto-transcribe downloaded videos", variable=gui_instance.auto_transcribe).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=5)
+    
+    # Add auto-delete option
+    ttk.Checkbutton(options_frame, text="Auto-delete videos after transcription", 
+                  variable=gui_instance.instagram_auto_delete).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=5)
     
     options_frame.columnconfigure(1, weight=1)
     
@@ -145,8 +153,9 @@ How to use Instagram Saved Posts Downloader:
 1. Choose where to save the downloaded posts
 2. Login to Instagram using browser cookies (recommended) or your username and password
 3. Set your download preferences (count, content types, auto-transcribe)
-4. Click "Download Saved Posts" to begin the process
-5. Downloaded videos can be automatically sent to the transcription process
+4. Enable auto-delete to automatically remove videos after transcription to save disk space
+5. Click "Download Saved Posts" to begin the process
+6. Downloaded videos can be automatically sent to the transcription process
 
 Note: This feature requires login to access your saved posts collection.
     """)
@@ -581,7 +590,7 @@ def download_saved_posts_thread(gui_instance, output_dir):
         ))
 
 def queue_videos_for_transcription(gui_instance, video_files):
-    """Queue multiple videos for transcription"""
+    """Queue multiple videos for transcription with auto-delete support"""
     if not video_files:
         return
     
@@ -592,6 +601,13 @@ def queue_videos_for_transcription(gui_instance, video_files):
         "This will add them to the batch processing queue."
     ):
         return
+    
+    # Create a list to track completed videos for auto-deletion
+    if gui_instance.instagram_auto_delete.get():
+        if not hasattr(gui_instance, 'batch_completed_videos'):
+            gui_instance.batch_completed_videos = []
+        # Add these videos to the tracking list
+        gui_instance.batch_completed_videos.extend(video_files)
     
     # Switch to batch processing tab if it exists
     for i in range(gui_instance.notebook.index("end")):
@@ -625,19 +641,3 @@ def queue_videos_for_transcription(gui_instance, video_files):
             f"Videos have been downloaded to:\n{common_dir}\n\n"
             "You can now manually transcribe them using the Transcription tab."
         )
-
-def integrate_instagram_saved(gui_instance):
-    """
-    Add Instagram saved posts functionality to the VideoTranscriberGUI class
-    
-    Args:
-        gui_instance: Instance of VideoTranscriberGUI
-    """
-    # Check if Instagram integration is initialized
-    if not hasattr(gui_instance, 'instaloader_api'):
-        # Initialize Instagram integration first
-        from instagram_integration import integrate_instagram
-        integrate_instagram(gui_instance)
-    
-    # Add saved posts tab
-    add_saved_posts_tab(gui_instance)

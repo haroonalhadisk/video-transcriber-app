@@ -93,10 +93,8 @@ def start_batch_transcription(self):
     self.batch_thread.daemon = True
     self.batch_thread.start()
 
-# Update the relevant part of batch_transcribe_videos_thread in batch_processing.py
-
 def batch_transcribe_videos_thread(self, video_files, output_dir):
-    """Process multiple video files in a thread"""
+    """Process multiple video files in a thread with auto-delete support"""
     # Import required modules inside the thread to ensure they're available
     import torch
     import whisper
@@ -107,6 +105,9 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
     language = self.language_var.get() if self.language_var.get() != "None" else None
     keep_audio = self.keep_audio_var.get()
     word_timestamps = self.word_timestamps_var.get()
+    
+    # Check if auto-delete option is enabled for Instagram videos
+    auto_delete_enabled = hasattr(self, 'instagram_auto_delete') and self.instagram_auto_delete.get()
     
     # Get system prompt for Groq processing if enabled
     system_prompt = None
@@ -140,6 +141,9 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
     
     # Keep track of videos with Groq processing issues
     groq_issues = []
+    
+    # Track processed videos for auto-deletion
+    processed_videos = []
     
     # Process each video file
     for i, video_file in enumerate(video_files):
@@ -274,7 +278,11 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
                         self.update_batch_log(f"✓ Added to Notion: {video_basename}")
                     else:
                         self.update_batch_log(f"✗ Notion error: {message}")
-                            
+                
+                # Add to processed videos list for auto-deletion
+                if auto_delete_enabled:
+                    processed_videos.append(video_file)
+                    
             except Exception as e:
                 self.update_batch_log(f"✗ Error transcribing {video_basename}: {str(e)}")
                 continue
@@ -290,10 +298,33 @@ def batch_transcribe_videos_thread(self, video_files, output_dir):
         self.processed_count += 1
         progress_percent = (self.processed_count / self.total_videos) * 100
         self.batch_progress.set(progress_percent)
+        
+        # Auto-delete this video if option is enabled and transcription is complete
+        if auto_delete_enabled and video_file in processed_videos:
+            try:
+                if os.path.exists(video_file):
+                    os.remove(video_file)
+                    self.update_batch_log(f"✓ Deleted video after processing: {video_basename}")
+                    # Remove from list after successful deletion
+                    processed_videos.remove(video_file)
+            except Exception as e:
+                self.update_batch_log(f"✗ Error deleting video: {video_basename} - {str(e)}")
     
     # Complete batch processing
     if self.is_batch_processing:
         completion_message = f"Batch processing completed. Processed {self.processed_count} of {self.total_videos} files."
+        
+        # Final cleanup of any remaining videos if auto-delete is enabled
+        if auto_delete_enabled and processed_videos:
+            for video_path in list(processed_videos):
+                try:
+                    if os.path.exists(video_path):
+                        os.remove(video_path)
+                        video_basename = os.path.basename(video_path)
+                        self.update_batch_log(f"✓ Deleted video after processing: {video_basename}")
+                except Exception as e:
+                    video_basename = os.path.basename(video_path)
+                    self.update_batch_log(f"✗ Error deleting video: {video_basename} - {str(e)}")
         
         # Save Groq error report if there were any issues and Groq was enabled
         if self.groq_enabled.get() and hasattr(self.groq_api, 'failed_processing') and self.groq_api.failed_processing:

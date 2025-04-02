@@ -118,9 +118,39 @@ def process_next_instagram_url(gui_instance):
     """
     Process the next Instagram URL in the batch queue
     """
+    # Auto-delete any completed videos from previous iterations if option is enabled
+    if gui_instance.instagram_auto_delete.get() and gui_instance.batch_completed_videos:
+        for video_path in list(gui_instance.batch_completed_videos):  # Create a copy of the list for safe iteration
+            try:
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+                    gui_instance.root.after(0, lambda vp=video_path: gui_instance.update_batch_log(
+                        f"✓ Deleted video after processing: {os.path.basename(vp)}"
+                    ))
+                gui_instance.batch_completed_videos.remove(video_path)
+            except Exception as e:
+                gui_instance.root.after(0, lambda vp=video_path, err=str(e): gui_instance.update_batch_log(
+                    f"✗ Error deleting video: {os.path.basename(vp)} - {err}"
+                ))
+    
     if not gui_instance.is_batch_instagram_processing or gui_instance.current_instagram_index >= len(gui_instance.instagram_urls):
         # Batch processing completed or canceled
         completion_message = f"Batch processing completed. Processed {gui_instance.current_instagram_index} of {len(gui_instance.instagram_urls)} videos."
+        
+        # Final cleanup of any remaining videos if auto-delete is enabled
+        if gui_instance.instagram_auto_delete.get() and gui_instance.batch_completed_videos:
+            for video_path in list(gui_instance.batch_completed_videos):
+                try:
+                    if os.path.exists(video_path):
+                        os.remove(video_path)
+                        gui_instance.root.after(0, lambda vp=video_path: gui_instance.update_batch_log(
+                            f"✓ Deleted video after processing: {os.path.basename(vp)}"
+                        ))
+                except Exception as e:
+                    gui_instance.root.after(0, lambda vp=video_path, err=str(e): gui_instance.update_batch_log(
+                        f"✗ Error deleting video: {os.path.basename(vp)} - {err}"
+                    ))
+            gui_instance.batch_completed_videos = []
         
         # Check for Groq issues if applicable
         if hasattr(gui_instance, 'groq_enabled') and gui_instance.groq_enabled.get() and \
@@ -207,6 +237,10 @@ def process_next_instagram_url(gui_instance):
             log_message = f"✓ Transcribed: {os.path.basename(output_file)}"
             gui_instance.root.after(0, lambda: gui_instance.update_batch_log(log_message))
             
+            # Add to auto-delete list if option is enabled
+            if gui_instance.instagram_auto_delete.get():
+                gui_instance.batch_completed_videos.append(video_path)
+            
         else:
             error_message = result
             # Log error
@@ -234,6 +268,7 @@ def update_instagram_batch_progress(gui_instance, value, status, current_url):
         gui_instance.root.after(0, lambda: gui_instance.instagram_progress.set(overall_progress))
         gui_instance.root.after(0, lambda: gui_instance.instagram_status.set(status_text))
 
+# Modified function to fix the winfo_text() error
 def add_batch_instagram_features(gui_instance):
     """
     Add batch Instagram link processing functionality to the Instagram tab
@@ -250,6 +285,29 @@ def add_batch_instagram_features(gui_instance):
     
     if not instagram_tab:
         return  # Instagram tab not found
+    
+    # Find the URL frame in the Instagram tab to ensure auto-delete option is properly placed
+    url_frame = None
+    for child in instagram_tab.winfo_children():
+        # Instead of using winfo_text(), check if it's a LabelFrame and look at the 'text' configuration
+        if isinstance(child, ttk.LabelFrame):
+            try:
+                # Get the text configuration of the LabelFrame
+                frame_text = child.cget('text')
+                if frame_text == "Instagram Video URL":
+                    url_frame = child
+                    break
+            except:
+                # If there's any issue getting the text, just continue to the next widget
+                continue
+    
+    # Ensure the auto-delete option is available in batch mode
+    if not hasattr(gui_instance, 'instagram_auto_delete'):
+        gui_instance.instagram_auto_delete = tk.BooleanVar(value=False)
+        if url_frame:
+            # Add the checkbox to the URL frame if it exists
+            ttk.Checkbutton(url_frame, text="Auto-delete videos after transcription", 
+                          variable=gui_instance.instagram_auto_delete).grid(row=2, column=1, sticky=tk.W, pady=5)
     
     # Find the button frame in the Instagram tab
     button_frame = None
@@ -273,6 +331,7 @@ def add_batch_instagram_features(gui_instance):
     gui_instance.instagram_urls = []
     gui_instance.current_instagram_index = 0
     gui_instance.instagram_batch_thread = None
+    gui_instance.batch_completed_videos = []  # Track videos completed for auto-deletion
 
 def load_urls_from_file(gui_instance):
     """
