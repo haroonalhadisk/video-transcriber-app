@@ -1,6 +1,6 @@
 # Video Transcriber
 
-A GUI application that accurately transcribes speech from video files using OpenAI's Whisper speech recognition model, with AI-powered summarization via Groq and Instagram video downloading via Instaloader.
+A GUI application that accurately transcribes speech from video files using OpenAI's Whisper speech recognition model, with AI-powered summarization via Groq and Instagram video downloading via Instaloader. Now with web interface support for platforms like Google Colab and Kaggle!
 
 ![Video Transcriber Screenshot](https://placeholder-image.com)
 
@@ -10,6 +10,7 @@ A GUI application that accurately transcribes speech from video files using Open
 - **AI-Powered Summaries**: Processes transcriptions with Groq API to create clear, jargon-free summaries and titles
 - **Robust Error Handling**: Gracefully handles empty transcripts and API errors during batch processing
 - **User-Friendly Interface**: Simple GUI for selecting and transcribing videos
+- **Web Interface**: Run the application in a web browser using Gradio, perfect for cloud notebooks and headless servers
 - **Multiple Model Options**: Choose from tiny, base, small, medium, or large models to balance speed and accuracy
 - **Multilingual Support**: Works with 99 languages with automatic language detection
 - **Timestamp Generation**: Option to include timestamps in the transcription
@@ -53,14 +54,14 @@ A GUI application that accurately transcribes speech from video files using Open
 Install all required packages using pip:
 
 ```bash
-pip install torch openai-whisper tkinter requests
+pip install torch openai-whisper tkinter requests gradio
 ```
 
 For NVIDIA GPU support (recommended for faster processing):
 
 ```bash
 pip install torch==2.0.0+cu118 -f https://download.pytorch.org/whl/torch_stable.html
-pip install openai-whisper requests
+pip install openai-whisper requests gradio
 ```
 
 For Instagram video download functionality:
@@ -74,10 +75,14 @@ pip install instaloader browser_cookie3
 1. Clone or download this repository
 2. Run the application:
    ```bash
+   # For desktop GUI mode
    python main.py
+   
+   # For web interface mode
+   python main.py --web
    ```
 
-### Using the Application
+### Using the Desktop Application
 
 #### Single File Transcription
 1. Click on the "Transcription" tab
@@ -181,6 +186,38 @@ pip install instaloader browser_cookie3
    - Processing continues even when Groq encounters issues
    - A detailed error report is generated at the end of batch processing
 
+### Using the Web Interface
+
+The web interface provides all the same functionality as the desktop application but can be accessed through a web browser, making it ideal for use on:
+- Google Colab
+- Kaggle
+- Remote servers
+- Headless systems
+
+#### Running in Web Mode
+
+```bash
+python main.py --web
+```
+
+This will start a Gradio web server and provide a link to access the interface in your browser. When running in a notebook environment like Google Colab, a public URL will be provided for access.
+
+#### Google Colab / Kaggle Integration
+
+1. Upload all application files to your Colab/Kaggle environment
+2. Install the required packages:
+   ```python
+   !pip install torch openai-whisper requests gradio instaloader browser_cookie3
+   !apt-get install -y ffmpeg
+   ```
+3. Run the application in web mode:
+   ```python
+   !python main.py --web
+   ```
+4. Click on the Gradio public URL provided in the output to access the interface
+
+For a complete guide to using the web interface on cloud platforms, refer to `web_mode_guide.md` in the repository.
+
 ## Managing Disk Space with Auto-Delete
 
 The auto-delete feature helps you manage disk space when working with Instagram videos:
@@ -224,10 +261,11 @@ The auto-delete feature helps you manage disk space when working with Instagram 
     - Video URLs, descriptions, and hashtags
     - Properly formatted transcription content with section headings
     - Multi-select properties for categorization via hashtags
+13. **Web Interface**: Provides a browser-based UI using Gradio for cloud environments
 
 ### Components
 
-- **GUI**: Built with Tkinter, Python's standard GUI toolkit
+- **GUI**: Built with Tkinter for desktop and Gradio for web interface
 - **Audio Processing**: Uses FFmpeg for reliable audio extraction
 - **Speech Recognition**: Leverages OpenAI's Whisper model via the `openai-whisper` Python package
 - **GPU Acceleration**: Automatically uses CUDA if available for faster processing
@@ -236,6 +274,7 @@ The auto-delete feature helps you manage disk space when working with Instagram 
 - **Error Handling**: Implements retry mechanism and comprehensive error reporting for Groq processing
 - **Instagram Integration**: Uses Instaloader to download videos from Instagram posts, reels, and saved collections
 - **Disk Management**: Implements auto-delete functionality for cleaning up downloaded videos after processing
+- **Web Mode**: Uses Gradio to create a browser-based interface for cloud platforms
 
 ## Troubleshooting
 
@@ -243,10 +282,11 @@ The auto-delete feature helps you manage disk space when working with Instagram 
 
 **Error: FFmpeg not found**
 - Make sure FFmpeg is installed and added to your system PATH
+- For Google Colab, install with `!apt-get install -y ffmpeg`
 - Restart the application after installing FFmpeg
 
 **Error: Missing required packages**
-- Run `pip install torch openai-whisper requests instaloader browser_cookie3` to install the required packages
+- Run `pip install torch openai-whisper requests instaloader browser_cookie3 gradio` to install the required packages
 - Make sure you have a compatible Python version (3.7+)
 
 **Error: 'Whisper' object has no attribute 'model'**
@@ -264,6 +304,12 @@ The auto-delete feature helps you manage disk space when working with Instagram 
 - For accounts with two-factor authentication (2FA), use the session file method
 - You may need to create a session file from the command line using: `instaloader --login YOUR_USERNAME`
 - If browser cookie login fails, try using username/password method instead
+- In web mode on cloud platforms, browser cookie login may not work as expected
+
+**Web Interface Issues**
+- If you encounter issues with the Gradio interface, make sure you have the latest version: `pip install --upgrade gradio`
+- For older Gradio versions, the application has been updated to be compatible
+- If you get module not found errors, ensure all required packages are installed
 
 **Batch Instagram Processing Errors**
 - Ensure your text file has one URL per line
@@ -303,4 +349,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Notion API](https://developers.notion.com/) for database integration
 - [Groq API](https://console.groq.com/) for AI-powered text processing
 - [Instaloader](https://instaloader.github.io/) for Instagram video downloading
-- Python Tkinter for the GUI framework
+- [Gradio](https://gradio.app/) for the web-based UI
+- Python Tkinter for the desktop GUI framework
