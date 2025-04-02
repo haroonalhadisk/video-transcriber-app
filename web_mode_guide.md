@@ -89,7 +89,7 @@ from google.colab import drive
 drive.mount('/content/drive')
 
 # Clone the repository (if not uploaded manually)
-!git clone https://github.com/your-username/video-transcriber.git
+!git clone https://github.com/haroonalhadisk/video-transcriber-app.git
 %cd video-transcriber
 
 # Install dependencies
